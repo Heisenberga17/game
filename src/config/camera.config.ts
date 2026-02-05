@@ -4,8 +4,8 @@
  * NOT marked `as const` — lil-gui needs to mutate these at runtime.
  */
 export const CAMERA_CONFIG = {
-  followDistance: 7,
-  heightOffset: 3,
+  followDistance: 5,
+  heightOffset: 2.2,
   lookAtHeight: 0.8,
   smoothFactor: 0.0001,
   baseFov: 70,
