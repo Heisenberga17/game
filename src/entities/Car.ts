@@ -221,6 +221,34 @@ export class Car implements ICameraTarget {
     this.vehiclePhysics.setBrake(brake);
   }
 
+  // --- Velocity clamping (called after physics step) ---
+
+  clampVelocity(): void {
+    const body = this.vehiclePhysics.chassisBody;
+    const maxVel = VEHICLE_CONFIG.maxSpeedApprox * 1.1;
+    const maxAngVel = 4;
+
+    // Hard cap linear velocity
+    const vel = body.velocity;
+    const speed = vel.length();
+    if (speed > maxVel) {
+      const s = maxVel / speed;
+      vel.x *= s;
+      vel.y *= s;
+      vel.z *= s;
+    }
+
+    // Hard cap angular velocity (prevents wild spinning after collisions)
+    const av = body.angularVelocity;
+    const angSpeed = av.length();
+    if (angSpeed > maxAngVel) {
+      const s = maxAngVel / angSpeed;
+      av.x *= s;
+      av.y *= s;
+      av.z *= s;
+    }
+  }
+
   // --- Visual sync (called during frame update) ---
 
   syncMeshes(_alpha: number): void {

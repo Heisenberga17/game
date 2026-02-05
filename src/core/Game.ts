@@ -67,6 +67,7 @@ export class Game {
   private fixedUpdate(fixedDt: number): void {
     this.car.handleInput(this.inputManager);
     this.physicsWorld.step(fixedDt);
+    this.car.clampVelocity();
   }
 
   /** Runs once per display frame. Syncs visuals, updates camera, renders. */
