@@ -35,6 +35,7 @@ export class VehiclePhysics {
       VEHICLE_CONFIG.spawnPosition.z,
     );
     this.chassisBody.linearDamping = VEHICLE_CONFIG.linearDamping;
+    this.chassisBody.angularDamping = VEHICLE_CONFIG.angularDamping;
 
     // ---- Raycast vehicle ----
     this.vehicle = new CANNON.RaycastVehicle({

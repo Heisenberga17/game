@@ -184,12 +184,19 @@ export class Car implements ICameraTarget {
       brakeForce,
       steerSpeed,
       steerReturnSpeed,
+      steerSpeedFalloff,
+      maxSpeedApprox,
     } = VEHICLE_CONFIG;
+
+    // Speed-dependent steering: full lock at rest, reduced at top speed
+    const speed = this.vehiclePhysics.getSpeed();
+    const speedRatio = Math.min(speed / maxSpeedApprox, 1);
+    const effectiveMaxSteer = maxSteerVal * (1 - speedRatio * steerSpeedFalloff);
 
     // Steering target: positive = left, negative = right
     let targetSteer = 0;
-    if (input.isLeft()) targetSteer = maxSteerVal;
-    else if (input.isRight()) targetSteer = -maxSteerVal;
+    if (input.isLeft()) targetSteer = effectiveMaxSteer;
+    else if (input.isRight()) targetSteer = -effectiveMaxSteer;
 
     // Smooth interpolation (called at fixed 60Hz)
     const rate = targetSteer === 0 ? steerReturnSpeed : steerSpeed;

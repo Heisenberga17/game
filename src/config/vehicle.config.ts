@@ -23,29 +23,31 @@ export const VEHICLE_CONFIG = {
   ],
 
   // --- Suspension ---
-  suspensionStiffness: 30,
+  suspensionStiffness: 25,
   suspensionRestLength: 0.3,
   maxSuspensionTravel: 0.3,
   maxSuspensionForce: 100000,
-  dampingCompression: 4.4,
-  dampingRelaxation: 2.3,
+  dampingCompression: 3.2,
+  dampingRelaxation: 2.0,
 
   // --- Traction ---
-  frictionSlip: 1.4,
-  rollInfluence: 0.01,
+  frictionSlip: 1.0,
+  rollInfluence: 0.05,
   customSlidingRotationalSpeed: -30,
   useCustomSlidingRotationalSpeed: true,
 
   // --- Drive / Steer / Brake ---
-  maxForce: 1000,
+  maxForce: 1200,
   reverseForceRatio: 0.5,
-  maxSteerVal: 0.5,
-  steerSpeed: 0.15,           // lerp factor per fixed step toward target steer
-  steerReturnSpeed: 0.25,     // lerp factor per fixed step back to center
+  maxSteerVal: 0.7,
+  steerSpeed: 0.3,            // lerp factor per fixed step toward target steer
+  steerReturnSpeed: 0.4,      // lerp factor per fixed step back to center
   brakeForce: 50,
+  steerSpeedFalloff: 0.55,    // how much max steer reduces at top speed (0–1)
 
   // --- Misc ---
   linearDamping: 0.1,
+  angularDamping: 0.4,
   maxSpeedApprox: 30,
 
   // --- Wheel ray directions ---
