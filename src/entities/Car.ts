@@ -207,6 +207,12 @@ export class Car implements ICameraTarget {
     if (input.isForward()) force = -maxForce;
     else if (input.isBackward()) force = maxForce * reverseForceRatio;
 
+    // Speed limiter — taper engine force near top speed to prevent instability
+    if (force < 0 && speed > maxSpeedApprox * 0.8) {
+      const fade = 1 - (speed - maxSpeedApprox * 0.8) / (maxSpeedApprox * 0.4);
+      force *= Math.max(0, fade);
+    }
+
     // Brake
     const brake = input.isBrake() ? brakeForce : 0;
 

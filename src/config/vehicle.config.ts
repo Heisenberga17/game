@@ -27,12 +27,12 @@ export const VEHICLE_CONFIG = {
   suspensionRestLength: 0.3,
   maxSuspensionTravel: 0.3,
   maxSuspensionForce: 100000,
-  dampingCompression: 3.2,
+  dampingCompression: 3.8,
   dampingRelaxation: 2.0,
 
   // --- Traction ---
-  frictionSlip: 1.0,
-  rollInfluence: 0.05,
+  frictionSlip: 1.2,
+  rollInfluence: 0.01,
   customSlidingRotationalSpeed: -30,
   useCustomSlidingRotationalSpeed: true,
 
@@ -47,7 +47,7 @@ export const VEHICLE_CONFIG = {
 
   // --- Misc ---
   linearDamping: 0.1,
-  angularDamping: 0.4,
+  angularDamping: 0.6,
   maxSpeedApprox: 30,
 
   // --- Wheel ray directions ---
