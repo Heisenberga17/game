@@ -2,466 +2,140 @@ import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { PhysicsWorld } from '../physics/PhysicsWorld';
 import { WORLD_CONFIG } from '../config/world.config';
-import { BuildingDef } from '../types';
-
-// City type configurations
-const CITY_CONFIGS = {
-  downtown: {
-    minHeight: 15,
-    maxHeight: 55,
-    density: 0.3,
-    skyColor: 0x8faabc,
-  },
-  suburban: {
-    minHeight: 4,
-    maxHeight: 12,
-    density: 0.5,
-    skyColor: 0x87ceeb,
-  },
-  industrial: {
-    minHeight: 8,
-    maxHeight: 25,
-    density: 0.2,
-    skyColor: 0x9a9a9a,
-  },
-  open: {
-    minHeight: 0,
-    maxHeight: 0,
-    density: 0,
-    skyColor: 0xaaccee,
-  },
-};
+import { loadModel, fixMaterials } from '../utils/ModelLoader';
 
 /**
- * Procedural city with:
- * - Dark asphalt ground
- * - Buildings with window textures on a Manhattan grid
- * - Setback towers on tall buildings (Art Deco style)
- * - Rooftop water towers
- * - Cornices on shorter buildings
- * - Yellow road center lines
- * - Invisible boundary walls
+ * City map loaded from Sketchfab GLB model.
+ * Provides ground plane, boundary walls, and visual city geometry.
  */
 export class CityMap {
-  // Shared materials (created once, reused across all buildings)
-  private readonly officeMat: THREE.MeshLambertMaterial;
-  private readonly glassMat: THREE.MeshLambertMaterial;
-  private readonly brownstoneMat: THREE.MeshLambertMaterial;
-  private readonly corniceMat = new THREE.MeshLambertMaterial({ color: 0x777777 });
-  private readonly waterTowerMat = new THREE.MeshLambertMaterial({ color: 0x5a4030 });
+  private cityModel: THREE.Group | null = null;
+  private floorLevel = 0;  // Will be set after city loads
 
-  // City configuration
-  private readonly cityConfig: typeof CITY_CONFIGS.downtown;
-
-  constructor(scene: THREE.Scene, physicsWorld: PhysicsWorld, cityType?: string) {
-    this.cityConfig = CITY_CONFIGS[cityType as keyof typeof CITY_CONFIGS] ?? CITY_CONFIGS.downtown;
-
-    const { mapSize, wallHeight, groundColor } = WORLD_CONFIG;
-
-    // Update scene sky color based on city type
-    scene.background = new THREE.Color(this.cityConfig.skyColor);
-    if (scene.fog) {
-      (scene.fog as THREE.Fog).color.set(this.cityConfig.skyColor);
-    }
-
-    // Create window textures
-    this.officeMat = new THREE.MeshLambertMaterial({
-      map: this.createWindowTexture('#6a6a6a', '#ffe88a', '#2a3040'),
-    });
-    this.glassMat = new THREE.MeshLambertMaterial({
-      map: this.createWindowTexture('#3a4555', '#88bbdd', '#253040'),
-    });
-    this.brownstoneMat = new THREE.MeshLambertMaterial({
-      map: this.createWindowTexture('#8b6b4a', '#ffd599', '#4a3525'),
-    });
-
-    this.addGround(scene, mapSize, groundColor);
-
-    // Only add buildings if not "open" city type
-    if (this.cityConfig.maxHeight > 0) {
-      const buildings = this.generateBuildings(mapSize);
-      this.addBuildings(scene, physicsWorld, buildings);
-    }
-
-    this.addRoadLines(scene, mapSize);
-    this.addBoundaryWalls(physicsWorld, mapSize, wallHeight);
+  constructor(
+    private readonly scene: THREE.Scene,
+    private readonly physicsWorld: PhysicsWorld,
+  ) {
+    // Ground added after city loads to match floor level
+    this.addBoundaryWalls();
   }
 
-  // ---- Window texture generation ----
+  /**
+   * Load the city model asynchronously.
+   * Call this after construction to load the visual city.
+   */
+  async loadCity(): Promise<void> {
+    try {
+      console.log('Loading city model...');
+      const gltf = await loadModel('/models/city/low_poly_city_game-ready.glb');
+      this.cityModel = gltf.scene;  // Use directly, don't clone
 
-  private createWindowTexture(
-    facade: string,
-    windowLit: string,
-    windowDark: string,
-  ): THREE.CanvasTexture {
-    const size = 64;
-    const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext('2d')!;
+      // Count meshes for debug
+      let meshCount = 0;
+      this.cityModel.traverse((c) => { if (c instanceof THREE.Mesh) meshCount++; });
+      console.log('City model loaded, meshes:', meshCount);
 
-    // Facade background
-    ctx.fillStyle = facade;
-    ctx.fillRect(0, 0, size, size);
+      // Fix materials for visibility (converts PBR to Lambert as fallback)
+      fixMaterials(this.cityModel);
+      console.log('Materials fixed');
 
-    // Subtle horizontal line between "floors"
-    ctx.fillStyle = 'rgba(0,0,0,0.15)';
-    ctx.fillRect(0, 0, size, 1);
-    ctx.fillRect(0, 32, size, 1);
+      // Get model bounds before scaling
+      const box = new THREE.Box3().setFromObject(this.cityModel);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      const originalCenter = new THREE.Vector3();
+      box.getCenter(originalCenter);
+      console.log('Original size:', size, 'center:', originalCenter);
 
-    // Window grid: 4 columns × 4 rows
-    const winW = 8, winH = 10;
-    const gapX = 8, gapY = 6;
-    const marginX = 4, marginY = 3;
-    let seed = facade.charCodeAt(1) * 31 + 7;
+      // Scale the city to fit our map size
+      const targetSize = WORLD_CONFIG.mapSize * 0.8;
+      const scale = targetSize / Math.max(size.x, size.z);
+      this.cityModel.scale.setScalar(scale);
+      console.log('Scale applied:', scale);
 
-    for (let row = 0; row < 4; row++) {
-      for (let col = 0; col < 4; col++) {
-        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-        const lit = (seed % 100) > 35;
-        ctx.fillStyle = lit ? windowLit : windowDark;
-        const x = marginX + col * (winW + gapX);
-        const y = marginY + row * (winH + gapY);
-        ctx.fillRect(x, y, winW, winH);
+      // Recalculate bounds AFTER scaling
+      box.setFromObject(this.cityModel);
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+      console.log('Scaled bounds - min:', box.min, 'max:', box.max, 'center:', center);
 
-        // Window frame (thin border)
-        ctx.strokeStyle = 'rgba(0,0,0,0.3)';
-        ctx.lineWidth = 0.5;
-        ctx.strokeRect(x, y, winW, winH);
-      }
-    }
+      // Move model so its center is at world origin
+      this.cityModel.position.sub(center);
 
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.wrapS = THREE.RepeatWrapping;
-    tex.wrapT = THREE.RepeatWrapping;
-    tex.magFilter = THREE.NearestFilter;
-    tex.minFilter = THREE.LinearMipmapLinearFilter;
-    return tex;
-  }
+      // Recalculate bounds after repositioning and put on ground (y=0)
+      box.setFromObject(this.cityModel);
+      console.log('After centering - min:', box.min, 'max:', box.max);
+      this.cityModel.position.y -= box.min.y;
+      console.log('City final position:', this.cityModel.position);
 
-  // ---- Ground ----
+      this.scene.add(this.cityModel);
 
-  private addGround(scene: THREE.Scene, mapSize: number, groundColor: number): void {
-    const groundGeo = new THREE.PlaneGeometry(mapSize, mapSize);
-    const groundMat = new THREE.MeshLambertMaterial({ color: groundColor });
-    const groundMesh = new THREE.Mesh(groundGeo, groundMat);
-    groundMesh.rotation.x = -Math.PI / 2;
-    groundMesh.receiveShadow = true;
-    scene.add(groundMesh);
-  }
+      // Recalculate final bounds
+      box.setFromObject(this.cityModel);
+      console.log('Final city bounds - min:', box.min, 'max:', box.max);
 
-  // ---- Procedural NYC grid ----
-
-  private generateBuildings(mapSize: number): BuildingDef[] {
-    const { streetWidth, blockWidth, blockDepth } = WORLD_CONFIG;
-    const { minHeight, maxHeight, density } = this.cityConfig;
-
-    const cellW = blockWidth + streetWidth;
-    const cellD = blockDepth + streetWidth;
-    const half = mapSize / 2;
-
-    const firstX = streetWidth / 2 + blockWidth / 2;
-    const firstZ = streetWidth / 2 + blockDepth / 2;
-
-    const centersX: number[] = [];
-    for (let cx = firstX; cx + blockWidth / 2 < half; cx += cellW) {
-      centersX.push(cx);
-      centersX.push(-cx);
-    }
-
-    const centersZ: number[] = [];
-    for (let cz = firstZ; cz + blockDepth / 2 < half; cz += cellD) {
-      centersZ.push(cz);
-      centersZ.push(-cz);
-    }
-
-    const buildings: BuildingDef[] = [];
-
-    // Helper to generate height based on config range
-    const getHeight = (hashVal: number): number => {
-      const range = maxHeight - minHeight;
-      const tier = hashVal % 10;
-      if (tier < 5) {
-        return minHeight + ((hashVal >>> 4) % (range * 0.3 + 1));
-      } else if (tier < 8) {
-        return minHeight + range * 0.3 + ((hashVal >>> 4) % (range * 0.4 + 1));
-      } else {
-        return minHeight + range * 0.7 + ((hashVal >>> 4) % (range * 0.3 + 1));
-      }
-    };
-
-    for (const cx of centersX) {
-      for (const cz of centersZ) {
-        const h = this.hash(cx, cz);
-        const height = getHeight(h);
-
-        // Use density to determine block splitting
-        const split = ((h >>> 8) % 100) < density * 100;
-
-        if (split) {
-          const splitW = (blockWidth - 1.5) / 2;
-          const h2 = this.hash(cx + 1, cz + 1);
-          const height2 = getHeight(h2);
-
-          buildings.push({
-            x: cx - (splitW / 2 + 0.4),
-            z: cz,
-            width: splitW,
-            height,
-            depth: blockDepth - 1,
-          });
-          buildings.push({
-            x: cx + (splitW / 2 + 0.4),
-            z: cz,
-            width: splitW,
-            height: height2,
-            depth: blockDepth - 1,
-          });
-        } else {
-          buildings.push({
-            x: cx,
-            z: cz,
-            width: blockWidth - 1,
-            height,
-            depth: blockDepth - 1,
-          });
-        }
-      }
-    }
-
-    return buildings;
-  }
-
-  // ---- Buildings with window textures ----
-
-  private addBuildings(
-    scene: THREE.Scene,
-    physicsWorld: PhysicsWorld,
-    buildings: BuildingDef[],
-  ): void {
-    for (const b of buildings) {
-      const h = this.hash(b.x, b.z);
-      const isSetback = b.height > 25 && (h % 3) === 0;
-
-      // Pick material by height
-      let mat: THREE.MeshLambertMaterial;
-      if (b.height < 16) mat = this.brownstoneMat;
-      else if (b.height < 32) mat = this.officeMat;
-      else mat = this.glassMat;
-
-      if (isSetback) {
-        // --- Art Deco setback: wide base + narrower tower ---
-        const baseH = b.height * 0.6;
-        const towerH = b.height * 0.4;
-        const towerW = b.width * 0.65;
-        const towerD = b.depth * 0.65;
-
-        // Base
-        const baseGeo = new THREE.BoxGeometry(b.width, baseH, b.depth);
-        this.scaleBoxUVs(baseGeo, b.width, baseH, b.depth, h);
-        const baseMesh = new THREE.Mesh(baseGeo, mat);
-        baseMesh.position.set(b.x, baseH / 2, b.z);
-        baseMesh.castShadow = true;
-        baseMesh.receiveShadow = true;
-        scene.add(baseMesh);
-
-        // Tower
-        const towerGeo = new THREE.BoxGeometry(towerW, towerH, towerD);
-        this.scaleBoxUVs(towerGeo, towerW, towerH, towerD, h + 99);
-        const towerMesh = new THREE.Mesh(towerGeo, mat);
-        towerMesh.position.set(b.x, baseH + towerH / 2, b.z);
-        towerMesh.castShadow = true;
-        towerMesh.receiveShadow = true;
-        scene.add(towerMesh);
-
-        // Setback ledge
-        const ledgeGeo = new THREE.BoxGeometry(b.width + 0.3, 0.15, b.depth + 0.3);
-        const ledge = new THREE.Mesh(ledgeGeo, this.corniceMat);
-        ledge.position.set(b.x, baseH + 0.07, b.z);
-        scene.add(ledge);
-      } else {
-        // --- Standard building ---
-        const geo = new THREE.BoxGeometry(b.width, b.height, b.depth);
-        this.scaleBoxUVs(geo, b.width, b.height, b.depth, h);
-        const mesh = new THREE.Mesh(geo, mat);
-        mesh.position.set(b.x, b.height / 2, b.z);
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        scene.add(mesh);
-      }
-
-      // --- Cornice on shorter buildings ---
-      if (b.height < 25) {
-        const corniceGeo = new THREE.BoxGeometry(b.width + 0.3, 0.2, b.depth + 0.3);
-        const cornice = new THREE.Mesh(corniceGeo, this.corniceMat);
-        cornice.position.set(b.x, b.height + 0.1, b.z);
-        scene.add(cornice);
-      }
-
-      // --- Water tower on some tall buildings ---
-      if (b.height > 20 && (h % 5) === 0) {
-        const tankGeo = new THREE.CylinderGeometry(0.45, 0.5, 1.4, 8);
-        const tank = new THREE.Mesh(tankGeo, this.waterTowerMat);
-        const offsetX = ((h >>> 6) % 3 - 1) * (b.width * 0.2);
-        const offsetZ = ((h >>> 9) % 3 - 1) * (b.depth * 0.2);
-        tank.position.set(b.x + offsetX, b.height + 1.5, b.z + offsetZ);
-        tank.castShadow = true;
-        scene.add(tank);
-
-        // Cone roof
-        const roofGeo = new THREE.ConeGeometry(0.55, 0.4, 8);
-        const roof = new THREE.Mesh(roofGeo, this.waterTowerMat);
-        roof.position.set(b.x + offsetX, b.height + 2.4, b.z + offsetZ);
-        scene.add(roof);
-
-        // Support legs (4 thin boxes)
-        const legGeo = new THREE.BoxGeometry(0.06, 0.8, 0.06);
-        for (let lx = -1; lx <= 1; lx += 2) {
-          for (let lz = -1; lz <= 1; lz += 2) {
-            const leg = new THREE.Mesh(legGeo, this.waterTowerMat);
-            leg.position.set(
-              b.x + offsetX + lx * 0.25,
-              b.height + 0.4,
-              b.z + offsetZ + lz * 0.25,
-            );
-            scene.add(leg);
+      // Find floor level by detecting large flat meshes (the drivable streets)
+      this.cityModel.traverse((c) => {
+        if (c instanceof THREE.Mesh) {
+          const meshBox = new THREE.Box3().setFromObject(c);
+          const meshSize = new THREE.Vector3();
+          meshBox.getSize(meshSize);
+          // Large flat mesh = floor/street
+          if (meshSize.y < 5 && (meshSize.x > 50 || meshSize.z > 50)) {
+            this.floorLevel = Math.max(this.floorLevel, meshBox.max.y);
           }
         }
-      }
+      });
+      console.log('City floor level detected:', this.floorLevel);
 
-      // --- Physics body (full footprint, unchanged) ---
-      const halfExtents = new CANNON.Vec3(b.width / 2, b.height / 2, b.depth / 2);
-      const body = new CANNON.Body({ mass: 0 });
-      body.addShape(new CANNON.Box(halfExtents));
-      body.position.set(b.x, b.height / 2, b.z);
-      physicsWorld.addBody(body);
+      // Add physics ground at the street level
+      this.addGround();
+
+      console.log('City added to scene successfully');
+    } catch (error) {
+      console.error('Failed to load city model:', error);
+      // Fallback: just use the ground plane (already added)
     }
   }
 
-  // ---- UV scaling for window tiling ----
-
-  private scaleBoxUVs(
-    geo: THREE.BoxGeometry,
-    w: number,
-    h: number,
-    d: number,
-    seed: number,
-  ): void {
-    const tileSize = 3; // game units per texture tile
-    const uv = geo.getAttribute('uv') as THREE.Float32BufferAttribute;
-    const normal = geo.getAttribute('normal') as THREE.Float32BufferAttribute;
-
-    // Random UV offset so each building has different window pattern
-    const offsetU = (seed % 100) / 100;
-    const offsetV = ((seed >>> 4) % 100) / 100;
-
-    for (let i = 0; i < uv.count; i++) {
-      const nx = Math.abs(normal.getX(i));
-      const ny = Math.abs(normal.getY(i));
-
-      let su: number, sv: number;
-      if (ny > 0.5) {
-        // Top/bottom: tile by width × depth
-        su = w / tileSize;
-        sv = d / tileSize;
-      } else if (nx > 0.5) {
-        // Left/right: tile by depth × height
-        su = d / tileSize;
-        sv = h / tileSize;
-      } else {
-        // Front/back: tile by width × height
-        su = w / tileSize;
-        sv = h / tileSize;
-      }
-
-      uv.setXY(i, uv.getX(i) * su + offsetU, uv.getY(i) * sv + offsetV);
-    }
+  private addGround(): void {
+    // Physics ground at detected city floor level
+    const groundBody = new CANNON.Body({ mass: 0 });
+    groundBody.addShape(new CANNON.Plane());
+    groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+    groundBody.position.y = this.floorLevel;
+    this.physicsWorld.addBody(groundBody);
+    console.log('Physics ground at Y:', this.floorLevel);
   }
 
-  // ---- Road center lines ----
-
-  private addRoadLines(scene: THREE.Scene, mapSize: number): void {
-    const { streetWidth, blockWidth, blockDepth, roadLineColor, roadLineWidth } = WORLD_CONFIG;
-    const cellW = blockWidth + streetWidth;
-    const cellD = blockDepth + streetWidth;
-    const half = mapSize / 2;
-
-    const streetCentersX: number[] = [0];
-    const streetCentersZ: number[] = [0];
-    for (let v = cellW; v < half; v += cellW) {
-      streetCentersX.push(v);
-      streetCentersX.push(-v);
-    }
-    for (let v = cellD; v < half; v += cellD) {
-      streetCentersZ.push(v);
-      streetCentersZ.push(-v);
-    }
-
-    const totalLines = streetCentersX.length + streetCentersZ.length;
-    const lineGeo = new THREE.BoxGeometry(1, 0.02, 1);
-    const lineMat = new THREE.MeshLambertMaterial({ color: roadLineColor });
-    const linesMesh = new THREE.InstancedMesh(lineGeo, lineMat, totalLines);
-
-    const matrix = new THREE.Matrix4();
-    const s = new THREE.Vector3();
-    let idx = 0;
-
-    for (const cx of streetCentersX) {
-      matrix.identity();
-      matrix.makeTranslation(cx, 0.01, 0);
-      s.set(roadLineWidth, 1, mapSize);
-      matrix.scale(s);
-      linesMesh.setMatrixAt(idx++, matrix);
-    }
-
-    for (const cz of streetCentersZ) {
-      matrix.identity();
-      matrix.makeTranslation(0, 0.01, cz);
-      s.set(mapSize, 1, roadLineWidth);
-      matrix.scale(s);
-      linesMesh.setMatrixAt(idx++, matrix);
-    }
-
-    linesMesh.instanceMatrix.needsUpdate = true;
-    scene.add(linesMesh);
+  /** Get the floor level for spawning vehicles */
+  getFloorLevel(): number {
+    return this.floorLevel;
   }
 
-  // ---- Boundary walls ----
-
-  private addBoundaryWalls(
-    physicsWorld: PhysicsWorld,
-    mapSize: number,
-    wallHeight: number,
-  ): void {
-    const { wallThickness } = WORLD_CONFIG;
+  private addBoundaryWalls(): void {
+    const { mapSize, wallHeight, wallThickness } = WORLD_CONFIG;
     const half = mapSize / 2;
     const wh = wallHeight / 2;
     const wt = wallThickness / 2;
 
-    this.addWall(physicsWorld, 0, wh, -half, half, wh, wt);
-    this.addWall(physicsWorld, 0, wh, half, half, wh, wt);
-    this.addWall(physicsWorld, half, wh, 0, wt, wh, half);
-    this.addWall(physicsWorld, -half, wh, 0, wt, wh, half);
+    // North wall
+    this.addWall(0, wh, -half, half, wh, wt);
+    // South wall
+    this.addWall(0, wh, half, half, wh, wt);
+    // East wall
+    this.addWall(half, wh, 0, wt, wh, half);
+    // West wall
+    this.addWall(-half, wh, 0, wt, wh, half);
   }
 
   private addWall(
-    physicsWorld: PhysicsWorld,
     px: number, py: number, pz: number,
     hx: number, hy: number, hz: number,
   ): void {
     const body = new CANNON.Body({ mass: 0 });
     body.addShape(new CANNON.Box(new CANNON.Vec3(hx, hy, hz)));
     body.position.set(px, py, pz);
-    physicsWorld.addBody(body);
-  }
-
-  // ---- Deterministic hash ----
-
-  private hash(x: number, z: number): number {
-    const ix = (x * 10) | 0;
-    const iz = (z * 10) | 0;
-    let h = (ix * 374761393 + iz * 668265263) | 0;
-    h = Math.imul(h ^ (h >>> 13), 1274126177);
-    return (h ^ (h >>> 16)) >>> 0;
+    this.physicsWorld.addBody(body);
   }
 }

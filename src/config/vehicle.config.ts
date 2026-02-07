@@ -8,7 +8,7 @@ export const VEHICLE_CONFIG = {
   chassisHeight: 0.5,         // half-extent Y (total height = 1)
   chassisLength: 2,           // half-extent Z (total length = 4)
   chassisMass: 120,
-  spawnPosition: { x: 0, y: 4, z: 0 },
+  spawnPosition: { x: 0, y: 85, z: 0 },
 
   // --- Wheels ---
   // Indices 0,1 = front (steered), indices 2,3 = rear (driven)

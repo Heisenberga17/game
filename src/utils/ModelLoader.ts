@@ -91,30 +91,57 @@ export function enableShadows(
 }
 
 /**
- * Fix materials for better visibility without environment maps.
- * Converts PBR materials to Lambert for consistent appearance.
- * Preserves vertex colors if present.
+ * Fix materials for visibility without environment maps.
+ * Converts PBR materials to Lambert. Handles arrays and edge cases.
  */
 export function fixMaterials(object: THREE.Object3D): void {
   object.traverse((child) => {
-    if (child instanceof THREE.Mesh) {
-      const oldMat = child.material as THREE.MeshStandardMaterial;
-      if (oldMat && oldMat.isMeshStandardMaterial) {
-        // Check if mesh uses vertex colors
-        const hasVertexColors = child.geometry?.attributes?.color !== undefined;
+    if (!(child instanceof THREE.Mesh)) return;
 
-        // Convert to Lambert for simpler lighting
-        const newMat = new THREE.MeshLambertMaterial({
-          color: oldMat.color,
-          map: oldMat.map,
-          vertexColors: hasVertexColors,
-          transparent: oldMat.transparent,
-          opacity: oldMat.opacity,
-          side: oldMat.side,
-        });
-        child.material = newMat;
+    // Handle both single material and material arrays
+    const materials = Array.isArray(child.material)
+      ? child.material
+      : [child.material];
+
+    const newMaterials = materials.map((mat) => {
+      if (!mat) return mat;
+
+      // Check for PBR materials (Standard or Physical)
+      const isPBR =
+        (mat as THREE.MeshStandardMaterial).isMeshStandardMaterial ||
+        (mat as THREE.MeshPhysicalMaterial).isMeshPhysicalMaterial;
+
+      if (!isPBR) return mat; // Keep non-PBR materials as-is
+
+      const oldMat = mat as THREE.MeshStandardMaterial;
+
+      // Check for vertex colors
+      const hasVertexColors = child.geometry?.attributes?.color !== undefined;
+
+      // Get color, default to gray if black/missing (prevents invisible geometry)
+      let color = oldMat.color;
+      if (!color || (color.r === 0 && color.g === 0 && color.b === 0 && !oldMat.map)) {
+        color = new THREE.Color(0x888888);
       }
-    }
+
+      return new THREE.MeshLambertMaterial({
+        color: color,
+        map: oldMat.map,
+        emissive: oldMat.emissive,
+        emissiveMap: oldMat.emissiveMap,
+        emissiveIntensity: oldMat.emissiveIntensity,
+        vertexColors: hasVertexColors,
+        transparent: oldMat.transparent,
+        opacity: oldMat.opacity,
+        side: oldMat.side,
+        alphaMap: oldMat.alphaMap,
+      });
+    });
+
+    // Restore original format (array or single)
+    child.material = Array.isArray(child.material)
+      ? newMaterials
+      : newMaterials[0];
   });
 }
 

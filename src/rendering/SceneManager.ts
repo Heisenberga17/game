@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { WORLD_CONFIG } from '../config/world.config';
 
 /**
@@ -40,6 +41,17 @@ export class SceneManager {
     this.renderer.shadowMap.type = THREE.BasicShadowMap;
     document.body.appendChild(this.renderer.domElement);
 
+    // ---- Environment for PBR materials ----
+    try {
+      const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
+      const environment = new RoomEnvironment();
+      this.scene.environment = pmremGenerator.fromScene(environment).texture;
+      pmremGenerator.dispose();
+      console.log('RoomEnvironment loaded successfully');
+    } catch (error) {
+      console.warn('RoomEnvironment failed, PBR materials may need fixMaterials:', error);
+    }
+
     // ---- Lighting ----
     this.setupLights();
 
@@ -67,8 +79,8 @@ export class SceneManager {
   // ---- Internal ----
 
   private setupLights(): void {
-    // Ambient hemisphere light (sky + ground)
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0);
+    // Ambient hemisphere light (sky + ground) - boosted for PBR materials
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 2.0);
     this.scene.add(hemiLight);
 
     // Main directional light with shadows

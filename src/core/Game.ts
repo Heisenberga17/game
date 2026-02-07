@@ -32,12 +32,17 @@ export class Game {
     // Input
     this.inputManager = new InputManager();
 
-    // World geometry (ground, buildings, walls) — registers itself in scene/physics
-    new CityMap(this.sceneManager.scene, this.physicsWorld, options?.city);
+    // World geometry (ground, buildings, walls)
+    const cityMap = new CityMap(this.sceneManager.scene, this.physicsWorld);
 
     // Player vehicle - now async to load GLTF
     this.car = new Car(this.sceneManager.scene, this.physicsWorld);
-    await this.car.loadModel(options?.vehicle ?? 'taxi');
+
+    // Load city and vehicle in parallel
+    await Promise.all([
+      cityMap.loadCity(),
+      this.car.loadModel(options?.vehicle ?? 'taxi'),
+    ]);
 
     // Camera
     this.cameraController = new CameraController(
