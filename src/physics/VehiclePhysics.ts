@@ -13,9 +13,9 @@ export class VehiclePhysics {
     // ---- Chassis ----
     const chassisShape = new CANNON.Box(
       new CANNON.Vec3(
-        VEHICLE_CONFIG.chassisWidth,
-        VEHICLE_CONFIG.chassisHeight,
-        VEHICLE_CONFIG.chassisLength,
+        VEHICLE_CONFIG.chassisWidth / 2,
+        VEHICLE_CONFIG.chassisHeight / 2,
+        VEHICLE_CONFIG.chassisLength / 2,
       ),
     );
 
@@ -28,7 +28,8 @@ export class VehiclePhysics {
       mass: VEHICLE_CONFIG.chassisMass,
       material: chassisMaterial,
     });
-    this.chassisBody.addShape(chassisShape);
+    // Offset shape upward → lowers center of mass for stability
+    this.chassisBody.addShape(chassisShape, new CANNON.Vec3(0, 0.3, 0));
     this.chassisBody.position.set(
       VEHICLE_CONFIG.spawnPosition.x,
       VEHICLE_CONFIG.spawnPosition.y,

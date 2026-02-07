@@ -1,21 +1,27 @@
 import * as THREE from 'three';
+import * as CANNON from 'cannon-es';
 import { VehiclePhysics } from '../physics/VehiclePhysics';
 import { PhysicsWorld } from '../physics/PhysicsWorld';
 import { InputManager } from '../core/InputManager';
 import { VEHICLE_CONFIG } from '../config/vehicle.config';
+import { loadModel, enableShadows, fixMaterials, getDimensions } from '../utils/ModelLoader';
 import { syncBodyToMesh, syncWheelToMesh } from '../utils/syncBodyToMesh';
 import { lerp } from '../utils/math';
 import { ICameraTarget } from '../types';
+import { getVehicleFile } from '../ui/GameMenu';
 
 /**
  * Player-controlled car entity.
- * Owns the physics vehicle, taxi-shaped chassis group, and four wheel meshes.
+ * Loads GLTF vehicle models from Kenney Car Kit.
  * Implements ICameraTarget so the camera can follow it.
  */
 export class Car implements ICameraTarget {
-  public readonly vehiclePhysics: VehiclePhysics;
-  public readonly chassisMesh: THREE.Group;
+  public vehiclePhysics!: VehiclePhysics;
+  public chassisMesh: THREE.Group;
   public readonly wheelMeshes: THREE.Mesh[] = [];
+
+  private readonly scene: THREE.Scene;
+  private readonly physicsWorld: PhysicsWorld;
 
   // Smooth steering state
   private currentSteer = 0;
@@ -24,15 +30,61 @@ export class Car implements ICameraTarget {
   private readonly _position = new THREE.Vector3();
   private readonly _quaternion = new THREE.Quaternion();
 
+  // Pre-allocated vector for anti-flip stabilizer
+  private readonly _worldUp = new CANNON.Vec3();
+
   constructor(scene: THREE.Scene, physicsWorld: PhysicsWorld) {
-    // --- Physics ---
-    this.vehiclePhysics = new VehiclePhysics(physicsWorld.getWorld());
-
-    // --- Taxi body ---
-    this.chassisMesh = this.buildTaxiBody();
+    this.scene = scene;
+    this.physicsWorld = physicsWorld;
+    this.chassisMesh = new THREE.Group();
     scene.add(this.chassisMesh);
+  }
 
-    // --- Wheel visuals ---
+  /** Load the GLTF model for the selected vehicle */
+  async loadModel(vehicleId: string): Promise<void> {
+    const fileName = getVehicleFile(vehicleId);
+    const modelPath = `/models/vehicles/${fileName}`;
+
+    try {
+      const gltf = await loadModel(modelPath);
+      const model = gltf.scene.clone();
+
+      // Enable shadows and fix materials for proper colors
+      enableShadows(model);
+      fixMaterials(model);
+
+      // Scale the model to fit physics body dimensions
+      const dims = getDimensions(model);
+      const targetLength = 4.0; // Target car length
+      const scale = targetLength / dims.z;
+      model.scale.setScalar(scale);
+
+      // Center the model
+      const box = new THREE.Box3().setFromObject(model);
+      const center = box.getCenter(new THREE.Vector3());
+      model.position.sub(center);
+      model.position.y = -box.min.y * scale; // Put wheels on ground
+
+      // Clear existing children and add new model
+      while (this.chassisMesh.children.length > 0) {
+        this.chassisMesh.remove(this.chassisMesh.children[0]);
+      }
+      this.chassisMesh.add(model);
+
+      // Create physics after loading model
+      this.vehiclePhysics = new VehiclePhysics(this.physicsWorld.getWorld());
+
+      // Create wheel visuals
+      this.createWheels();
+    } catch (error) {
+      console.warn(`Failed to load vehicle model ${modelPath}, using fallback`);
+      this.createFallbackCar();
+      this.vehiclePhysics = new VehiclePhysics(this.physicsWorld.getWorld());
+      this.createWheels();
+    }
+  }
+
+  private createWheels(): void {
     const { wheelRadius, wheelWidth, wheelSegments } = VEHICLE_CONFIG;
     const wheelGeo = new THREE.CylinderGeometry(
       wheelRadius,
@@ -40,7 +92,6 @@ export class Car implements ICameraTarget {
       wheelWidth,
       wheelSegments,
     );
-    // Rotate geometry so the cylinder aligns with the axle (X axis)
     wheelGeo.rotateZ(Math.PI / 2);
 
     const wheelMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
@@ -48,135 +99,26 @@ export class Car implements ICameraTarget {
     for (let i = 0; i < 4; i++) {
       const mesh = new THREE.Mesh(wheelGeo, wheelMat);
       mesh.castShadow = true;
-      scene.add(mesh);
+      this.scene.add(mesh);
       this.wheelMeshes.push(mesh);
     }
   }
 
-  // --- Taxi body construction ---
-
-  private buildTaxiBody(): THREE.Group {
-    const group = new THREE.Group();
-
-    // Materials
-    const taxiYellow = new THREE.MeshLambertMaterial({ color: 0xf2c12e });
-    const darkGlass = new THREE.MeshLambertMaterial({ color: 0x1a2a3a });
-    const chrome = new THREE.MeshLambertMaterial({ color: 0xcccccc });
-    const headlightMat = new THREE.MeshLambertMaterial({
-      color: 0xfffacd,
-      emissive: 0x333322,
-    });
-    const taillightMat = new THREE.MeshLambertMaterial({
-      color: 0xcc0000,
-      emissive: 0x440000,
-    });
-    const signMat = new THREE.MeshLambertMaterial({
-      color: 0xffffdd,
-      emissive: 0x444422,
-    });
-
-    // --- Main body (extruded side profile) ---
-    // Shape x = car's Z (forward), shape y = car's Y (up)
-    const shape = new THREE.Shape();
-    shape.moveTo(-2.0, -0.35);   // rear-bottom
-    shape.lineTo(2.0, -0.35);    // front-bottom
-    shape.lineTo(2.0, 0.0);      // front face
-    shape.lineTo(1.6, 0.1);      // hood angle
-    shape.lineTo(0.7, 0.1);      // hood end
-    shape.lineTo(0.25, 0.45);    // windshield
-    shape.lineTo(0.15, 0.47);    // roof front edge
-    shape.lineTo(-0.7, 0.47);    // roof rear edge
-    shape.lineTo(-1.2, 0.1);     // rear window
-    shape.lineTo(-1.65, 0.08);   // trunk
-    shape.lineTo(-2.0, -0.1);    // rear face
-    shape.lineTo(-2.0, -0.35);   // close
-
-    const bodyGeo = new THREE.ExtrudeGeometry(shape, {
-      depth: 1.8,
-      bevelEnabled: true,
-      bevelThickness: 0.05,
-      bevelSize: 0.05,
-      bevelSegments: 2,
-    });
-
-    // Extrusion goes along local Z → rotate so Z becomes X (car width)
-    bodyGeo.rotateY(-Math.PI / 2);
-    // Center width: extrusion was 0..1.8 in Z, after rotation it's in -X
-    bodyGeo.translate(0.9, 0, 0);
-
-    const body = new THREE.Mesh(bodyGeo, taxiYellow);
+  private createFallbackCar(): void {
+    // Simple box fallback if model fails to load
+    const bodyGeo = new THREE.BoxGeometry(1.8, 0.8, 4.0);
+    const bodyMat = new THREE.MeshLambertMaterial({ color: 0xf2c12e });
+    const body = new THREE.Mesh(bodyGeo, bodyMat);
     body.castShadow = true;
-    body.receiveShadow = true;
-    group.add(body);
-
-    // --- Taxi sign on roof ---
-    const signGeo = new THREE.BoxGeometry(0.3, 0.12, 0.45);
-    const sign = new THREE.Mesh(signGeo, signMat);
-    sign.position.set(0, 0.53, -0.15);
-    group.add(sign);
-
-    // --- Front windshield (angled glass) ---
-    // Windshield goes from (z=0.7, y=0.1) to (z=0.25, y=0.45)
-    const wsWidth = 1.5;
-    const wsHeight = Math.sqrt(0.45 ** 2 + 0.35 ** 2); // diagonal length
-    const wsAngle = Math.atan2(0.35, 0.45); // angle from vertical
-    const wsGeo = new THREE.BoxGeometry(wsWidth, wsHeight, 0.05);
-    const windshield = new THREE.Mesh(wsGeo, darkGlass);
-    windshield.position.set(0, 0.275, 0.475);
-    windshield.rotation.x = wsAngle;
-    group.add(windshield);
-
-    // --- Rear window (angled glass) ---
-    // Rear window goes from (z=-0.7, y=0.47) to (z=-1.2, y=0.1)
-    const rwHeight = Math.sqrt(0.37 ** 2 + 0.5 ** 2);
-    const rwAngle = Math.atan2(0.5, 0.37); // angle from vertical
-    const rwGeo = new THREE.BoxGeometry(1.4, rwHeight, 0.05);
-    const rearWindow = new THREE.Mesh(rwGeo, darkGlass);
-    rearWindow.position.set(0, 0.285, -0.95);
-    rearWindow.rotation.x = -rwAngle;
-    group.add(rearWindow);
-
-    // --- Side windows (left and right) ---
-    const sideWinGeo = new THREE.BoxGeometry(0.05, 0.28, 0.75);
-    for (const side of [-1, 1]) {
-      const sideWin = new THREE.Mesh(sideWinGeo, darkGlass);
-      sideWin.position.set(side * 0.92, 0.32, -0.15);
-      group.add(sideWin);
-    }
-
-    // --- Front bumper ---
-    const bumperGeo = new THREE.BoxGeometry(1.8, 0.12, 0.12);
-    const frontBumper = new THREE.Mesh(bumperGeo, chrome);
-    frontBumper.position.set(0, -0.38, 2.05);
-    group.add(frontBumper);
-
-    // --- Rear bumper ---
-    const rearBumper = new THREE.Mesh(bumperGeo, chrome);
-    rearBumper.position.set(0, -0.38, -2.05);
-    group.add(rearBumper);
-
-    // --- Headlights ---
-    const headlightGeo = new THREE.BoxGeometry(0.25, 0.12, 0.06);
-    for (const side of [-1, 1]) {
-      const headlight = new THREE.Mesh(headlightGeo, headlightMat);
-      headlight.position.set(side * 0.7, -0.15, 2.01);
-      group.add(headlight);
-    }
-
-    // --- Taillights ---
-    const taillightGeo = new THREE.BoxGeometry(0.22, 0.1, 0.06);
-    for (const side of [-1, 1]) {
-      const taillight = new THREE.Mesh(taillightGeo, taillightMat);
-      taillight.position.set(side * 0.7, -0.15, -2.01);
-      group.add(taillight);
-    }
-
-    return group;
+    body.position.y = 0.4;
+    this.chassisMesh.add(body);
   }
 
   // --- Input handling (called during fixed update) ---
 
   handleInput(input: InputManager): void {
+    if (!this.vehiclePhysics) return;
+
     const {
       maxSteerVal,
       maxForce,
@@ -207,9 +149,9 @@ export class Car implements ICameraTarget {
     if (input.isForward()) force = -maxForce;
     else if (input.isBackward()) force = maxForce * reverseForceRatio;
 
-    // Speed limiter — taper engine force near top speed to prevent instability
-    if (force < 0 && speed > maxSpeedApprox * 0.8) {
-      const fade = 1 - (speed - maxSpeedApprox * 0.8) / (maxSpeedApprox * 0.4);
+    // Speed limiter — taper engine force near top speed, zero at max
+    if (force < 0 && speed > maxSpeedApprox * 0.7) {
+      const fade = 1 - (speed - maxSpeedApprox * 0.7) / (maxSpeedApprox * 0.3);
       force *= Math.max(0, fade);
     }
 
@@ -221,12 +163,14 @@ export class Car implements ICameraTarget {
     this.vehiclePhysics.setBrake(brake);
   }
 
-  // --- Velocity clamping (called after physics step) ---
+  // --- Stability systems (called after physics step) ---
 
   clampVelocity(): void {
+    if (!this.vehiclePhysics) return;
+
     const body = this.vehiclePhysics.chassisBody;
     const maxVel = VEHICLE_CONFIG.maxSpeedApprox * 1.1;
-    const maxAngVel = 4;
+    const maxAngVel = 3.5;
 
     // Hard cap linear velocity
     const vel = body.velocity;
@@ -238,7 +182,7 @@ export class Car implements ICameraTarget {
       vel.z *= s;
     }
 
-    // Hard cap angular velocity (prevents wild spinning after collisions)
+    // Hard cap angular velocity
     const av = body.angularVelocity;
     const angSpeed = av.length();
     if (angSpeed > maxAngVel) {
@@ -247,11 +191,45 @@ export class Car implements ICameraTarget {
       av.y *= s;
       av.z *= s;
     }
+
+    // Anti-flip stabilizer: get the car's local up in world space
+    body.quaternion.vmult(CANNON.Vec3.UNIT_Y, this._worldUp);
+    const upDot = this._worldUp.y; // 1 = upright, 0 = on side, -1 = flipped
+
+    if (upDot < 0.85) {
+      // Car is tilting — dampen roll/pitch angular velocity aggressively
+      av.x *= 0.8;
+      av.z *= 0.8;
+
+      // Apply corrective torque to push the car back upright
+      const correctionStrength = (1 - upDot) * 80;
+      body.torque.x += -this._worldUp.z * correctionStrength;
+      body.torque.z += this._worldUp.x * correctionStrength;
+    }
+
+    // If car is nearly flipped, force it upright
+    if (upDot < 0.1) {
+      av.x *= 0.3;
+      av.z *= 0.3;
+      // Slerp quaternion toward upright
+      const q = body.quaternion;
+      const yaw = Math.atan2(
+        2 * (q.w * q.y + q.x * q.z),
+        1 - 2 * (q.y * q.y + q.z * q.z),
+      );
+      // Build an upright quaternion preserving the yaw
+      body.quaternion.setFromEuler(0, yaw, 0);
+      // Kill most velocity so it doesn't immediately flip again
+      vel.x *= 0.5;
+      vel.z *= 0.5;
+    }
   }
 
   // --- Visual sync (called during frame update) ---
 
   syncMeshes(_alpha: number): void {
+    if (!this.vehiclePhysics) return;
+
     // Sync chassis body -> mesh group
     syncBodyToMesh(this.vehiclePhysics.chassisBody, this.chassisMesh);
 
@@ -277,6 +255,6 @@ export class Car implements ICameraTarget {
   }
 
   getSpeed(): number {
-    return this.vehiclePhysics.getSpeed();
+    return this.vehiclePhysics?.getSpeed() ?? 0;
   }
 }

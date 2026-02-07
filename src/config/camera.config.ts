@@ -12,5 +12,5 @@ export const CAMERA_CONFIG = {
   fovShift: 8,
   fovSmoothFactor: 0.0001,
   near: 0.1,
-  far: 200,
+  far: 800,
 };

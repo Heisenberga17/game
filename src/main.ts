@@ -1,6 +1,14 @@
 import './style.css';
 import { Game } from './core/Game';
+import { GameMenu } from './ui/GameMenu';
 
-const game = new Game();
-game.init();
-game.start();
+async function main() {
+  const menu = new GameMenu();
+  const options = await menu.show();
+
+  const game = new Game();
+  await game.init(options);
+  game.start();
+}
+
+main();

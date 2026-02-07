@@ -25,9 +25,13 @@ export class PhysicsWorld {
     this.createGround();
   }
 
-  /** Advance the physics simulation by one fixed timestep. */
+  /** Advance the physics simulation by one fixed timestep (with sub-stepping). */
   step(fixedDt: number): void {
-    this.world.step(fixedDt);
+    const subSteps = WORLD_CONFIG.physicsSubSteps;
+    const subDt = fixedDt / subSteps;
+    for (let i = 0; i < subSteps; i++) {
+      this.world.step(subDt);
+    }
   }
 
   /** Add a rigid body to the world. */

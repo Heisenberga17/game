@@ -6,6 +6,7 @@ import { Car } from '../entities/Car';
 import { CityMap } from '../entities/CityMap';
 import { CameraController } from '../rendering/CameraController';
 import { DebugManager } from '../debug/DebugManager';
+import { GameOptions } from '../ui/GameMenu';
 
 /**
  * Top-level game orchestrator.
@@ -21,7 +22,7 @@ export class Game {
   private debugManager!: DebugManager;
 
   /** Initialize all systems. Call once before start(). */
-  init(): void {
+  async init(options?: GameOptions): Promise<void> {
     // Rendering
     this.sceneManager = new SceneManager();
 
@@ -32,10 +33,11 @@ export class Game {
     this.inputManager = new InputManager();
 
     // World geometry (ground, buildings, walls) — registers itself in scene/physics
-    new CityMap(this.sceneManager.scene, this.physicsWorld);
+    new CityMap(this.sceneManager.scene, this.physicsWorld, options?.city);
 
-    // Player vehicle
+    // Player vehicle - now async to load GLTF
     this.car = new Car(this.sceneManager.scene, this.physicsWorld);
+    await this.car.loadModel(options?.vehicle ?? 'taxi');
 
     // Camera
     this.cameraController = new CameraController(

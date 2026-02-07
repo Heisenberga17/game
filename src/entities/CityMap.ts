@@ -4,8 +4,36 @@ import { PhysicsWorld } from '../physics/PhysicsWorld';
 import { WORLD_CONFIG } from '../config/world.config';
 import { BuildingDef } from '../types';
 
+// City type configurations
+const CITY_CONFIGS = {
+  downtown: {
+    minHeight: 15,
+    maxHeight: 55,
+    density: 0.3,
+    skyColor: 0x8faabc,
+  },
+  suburban: {
+    minHeight: 4,
+    maxHeight: 12,
+    density: 0.5,
+    skyColor: 0x87ceeb,
+  },
+  industrial: {
+    minHeight: 8,
+    maxHeight: 25,
+    density: 0.2,
+    skyColor: 0x9a9a9a,
+  },
+  open: {
+    minHeight: 0,
+    maxHeight: 0,
+    density: 0,
+    skyColor: 0xaaccee,
+  },
+};
+
 /**
- * Procedural NYC-style city with:
+ * Procedural city with:
  * - Dark asphalt ground
  * - Buildings with window textures on a Manhattan grid
  * - Setback towers on tall buildings (Art Deco style)
@@ -22,8 +50,19 @@ export class CityMap {
   private readonly corniceMat = new THREE.MeshLambertMaterial({ color: 0x777777 });
   private readonly waterTowerMat = new THREE.MeshLambertMaterial({ color: 0x5a4030 });
 
-  constructor(scene: THREE.Scene, physicsWorld: PhysicsWorld) {
-    const { mapSize, wallHeight } = WORLD_CONFIG;
+  // City configuration
+  private readonly cityConfig: typeof CITY_CONFIGS.downtown;
+
+  constructor(scene: THREE.Scene, physicsWorld: PhysicsWorld, cityType?: string) {
+    this.cityConfig = CITY_CONFIGS[cityType as keyof typeof CITY_CONFIGS] ?? CITY_CONFIGS.downtown;
+
+    const { mapSize, wallHeight, groundColor } = WORLD_CONFIG;
+
+    // Update scene sky color based on city type
+    scene.background = new THREE.Color(this.cityConfig.skyColor);
+    if (scene.fog) {
+      (scene.fog as THREE.Fog).color.set(this.cityConfig.skyColor);
+    }
 
     // Create window textures
     this.officeMat = new THREE.MeshLambertMaterial({
@@ -36,10 +75,15 @@ export class CityMap {
       map: this.createWindowTexture('#8b6b4a', '#ffd599', '#4a3525'),
     });
 
-    this.addGround(scene);
-    const buildings = this.generateBuildings();
-    this.addBuildings(scene, physicsWorld, buildings);
-    this.addRoadLines(scene);
+    this.addGround(scene, mapSize, groundColor);
+
+    // Only add buildings if not "open" city type
+    if (this.cityConfig.maxHeight > 0) {
+      const buildings = this.generateBuildings(mapSize);
+      this.addBuildings(scene, physicsWorld, buildings);
+    }
+
+    this.addRoadLines(scene, mapSize);
     this.addBoundaryWalls(physicsWorld, mapSize, wallHeight);
   }
 
@@ -97,8 +141,7 @@ export class CityMap {
 
   // ---- Ground ----
 
-  private addGround(scene: THREE.Scene): void {
-    const { mapSize, groundColor } = WORLD_CONFIG;
+  private addGround(scene: THREE.Scene, mapSize: number, groundColor: number): void {
     const groundGeo = new THREE.PlaneGeometry(mapSize, mapSize);
     const groundMat = new THREE.MeshLambertMaterial({ color: groundColor });
     const groundMesh = new THREE.Mesh(groundGeo, groundMat);
@@ -109,8 +152,10 @@ export class CityMap {
 
   // ---- Procedural NYC grid ----
 
-  private generateBuildings(): BuildingDef[] {
-    const { streetWidth, blockWidth, blockDepth, mapSize } = WORLD_CONFIG;
+  private generateBuildings(mapSize: number): BuildingDef[] {
+    const { streetWidth, blockWidth, blockDepth } = WORLD_CONFIG;
+    const { minHeight, maxHeight, density } = this.cityConfig;
+
     const cellW = blockWidth + streetWidth;
     const cellD = blockDepth + streetWidth;
     const half = mapSize / 2;
@@ -132,30 +177,31 @@ export class CityMap {
 
     const buildings: BuildingDef[] = [];
 
+    // Helper to generate height based on config range
+    const getHeight = (hashVal: number): number => {
+      const range = maxHeight - minHeight;
+      const tier = hashVal % 10;
+      if (tier < 5) {
+        return minHeight + ((hashVal >>> 4) % (range * 0.3 + 1));
+      } else if (tier < 8) {
+        return minHeight + range * 0.3 + ((hashVal >>> 4) % (range * 0.4 + 1));
+      } else {
+        return minHeight + range * 0.7 + ((hashVal >>> 4) % (range * 0.3 + 1));
+      }
+    };
+
     for (const cx of centersX) {
       for (const cz of centersZ) {
         const h = this.hash(cx, cz);
+        const height = getHeight(h);
 
-        const tier = h % 10;
-        let height: number;
-        if (tier < 5) {
-          height = 6 + ((h >>> 4) % 10);
-        } else if (tier < 8) {
-          height = 16 + ((h >>> 4) % 15);
-        } else {
-          height = 32 + ((h >>> 4) % 20);
-        }
-
-        const split = ((h >>> 8) % 3) === 0;
+        // Use density to determine block splitting
+        const split = ((h >>> 8) % 100) < density * 100;
 
         if (split) {
           const splitW = (blockWidth - 1.5) / 2;
           const h2 = this.hash(cx + 1, cz + 1);
-          const tier2 = h2 % 10;
-          let height2: number;
-          if (tier2 < 5) height2 = 6 + ((h2 >>> 4) % 10);
-          else if (tier2 < 8) height2 = 16 + ((h2 >>> 4) % 15);
-          else height2 = 32 + ((h2 >>> 4) % 20);
+          const height2 = getHeight(h2);
 
           buildings.push({
             x: cx - (splitW / 2 + 0.4),
@@ -334,9 +380,8 @@ export class CityMap {
 
   // ---- Road center lines ----
 
-  private addRoadLines(scene: THREE.Scene): void {
-    const { streetWidth, blockWidth, blockDepth, mapSize, roadLineColor, roadLineWidth } =
-      WORLD_CONFIG;
+  private addRoadLines(scene: THREE.Scene, mapSize: number): void {
+    const { streetWidth, blockWidth, blockDepth, roadLineColor, roadLineWidth } = WORLD_CONFIG;
     const cellW = blockWidth + streetWidth;
     const cellD = blockDepth + streetWidth;
     const half = mapSize / 2;
