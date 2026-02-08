@@ -9,21 +9,14 @@ export interface GameOptions {
 
 // Vehicle model definitions from Kenney Car Kit (curated selection)
 const VEHICLES = [
+  { id: 'lightning-mcqueen', name: 'Lightning McQueen', file: 'rookie_lightning_mcqueen.glb' },
+  { id: 'cal-weathers', name: 'Cal Weathers', file: 'cal_weathers.glb' },
+  { id: 'guido', name: 'Guido', file: 'guido.glb' },
   { id: 'taxi', name: 'Taxi', file: 'taxi.glb' },
-  { id: 'sedan-sports', name: 'Sports Car', file: 'sedan-sports.glb' },
-  { id: 'hatchback-sports', name: 'Hatchback', file: 'hatchback-sports.glb' },
-  { id: 'suv', name: 'SUV', file: 'suv.glb' },
-  { id: 'suv-luxury', name: 'Luxury SUV', file: 'suv-luxury.glb' },
-  { id: 'van', name: 'Van', file: 'van.glb' },
   { id: 'police', name: 'Police', file: 'police.glb' },
-  { id: 'ambulance', name: 'Ambulance', file: 'ambulance.glb' },
   { id: 'firetruck', name: 'Fire Truck', file: 'firetruck.glb' },
   { id: 'race', name: 'Race Car', file: 'race.glb' },
-  { id: 'race-future', name: 'Future Racer', file: 'race-future.glb' },
-  { id: 'delivery', name: 'Delivery', file: 'delivery.glb' },
   { id: 'truck', name: 'Truck', file: 'truck.glb' },
-  { id: 'garbage-truck', name: 'Garbage Truck', file: 'garbage-truck.glb' },
-  { id: 'tractor', name: 'Tractor', file: 'tractor.glb' },
 ];
 
 export class GameMenu {

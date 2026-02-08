@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader, GLTF } from 'three/addons/loaders/GLTFLoader.js';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
 /**
  * Utility for loading GLTF/GLB models.
@@ -142,6 +143,25 @@ export function fixMaterials(object: THREE.Object3D): void {
     child.material = Array.isArray(child.material)
       ? newMaterials
       : newMaterials[0];
+  });
+}
+
+/**
+ * Clone a GLTF scene that contains skinned meshes.
+ * Uses SkeletonUtils.clone to properly handle skeleton bindings.
+ */
+export function cloneSkinnedScene(scene: THREE.Object3D): THREE.Object3D {
+  return SkeletonUtils.clone(scene);
+}
+
+/**
+ * Load an FBX file (e.g. Mixamo animation).
+ */
+export async function loadFBX(path: string): Promise<THREE.Group> {
+  const { FBXLoader } = await import('three/addons/loaders/FBXLoader.js');
+  const fbxLoader = new FBXLoader();
+  return new Promise((resolve, reject) => {
+    fbxLoader.load(path, resolve, undefined, reject);
   });
 }
 

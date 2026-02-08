@@ -8,4 +8,6 @@ export const INPUT_CONFIG = {
   left:     ['ArrowLeft', 'KeyA'],
   right:    ['ArrowRight', 'KeyD'],
   brake:    ['Space'],
+  cameraModeAvatar: ['Digit1'],
+  cameraModeCar:    ['Digit2'],
 };

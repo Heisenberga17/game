@@ -7,10 +7,12 @@ import { INPUT_CONFIG } from '../config/input.config';
  */
 export class InputManager {
   private readonly keys = new Map<string, boolean>();
+  private readonly justPressedKeys = new Set<string>();
 
   /** Codes that should have their default browser behaviour suppressed. */
   private static readonly PREVENT_DEFAULT_CODES = new Set([
     'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space',
+    'Digit1', 'Digit2',
   ]);
 
   // Store bound handlers so we can remove them in dispose()
@@ -22,6 +24,10 @@ export class InputManager {
     this.handleKeyDown = (e: KeyboardEvent) => {
       if (InputManager.PREVENT_DEFAULT_CODES.has(e.code)) {
         e.preventDefault();
+      }
+      // Track edge (just pressed) for one-shot actions
+      if (!this.keys.get(e.code)) {
+        this.justPressedKeys.add(e.code);
       }
       this.keys.set(e.code, true);
     };
@@ -63,6 +69,27 @@ export class InputManager {
 
   isBrake(): boolean {
     return this.anyPressed(INPUT_CONFIG.brake);
+  }
+
+  /** Returns true only on the first frame a key in `codes` transitions to pressed. */
+  isJustPressed(codes: string[]): boolean {
+    for (const code of codes) {
+      if (this.justPressedKeys.has(code)) return true;
+    }
+    return false;
+  }
+
+  isToggleAvatarCamera(): boolean {
+    return this.isJustPressed(INPUT_CONFIG.cameraModeAvatar);
+  }
+
+  isToggleCarCamera(): boolean {
+    return this.isJustPressed(INPUT_CONFIG.cameraModeCar);
+  }
+
+  /** Clear one-shot triggers. Call at end of each frame. */
+  clearJustPressed(): void {
+    this.justPressedKeys.clear();
   }
 
   /** Remove all event listeners. */
