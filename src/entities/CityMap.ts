@@ -53,18 +53,17 @@ export class CityMap {
 
       this.scene.add(this.cityModel);
 
-      // Detect drivable floor level from large flat meshes
-      this.cityModel.traverse((c) => {
-        if (c instanceof THREE.Mesh) {
-          const meshBox = new THREE.Box3().setFromObject(c);
-          const meshSize = new THREE.Vector3();
-          meshBox.getSize(meshSize);
-          if (meshSize.y < 5 && (meshSize.x > 50 || meshSize.z > 50)) {
-            this.floorLevel = Math.max(this.floorLevel, meshBox.max.y);
-          }
-        }
-      });
+      // Detect road surface via raycasting from above city center
+      const raycaster = new THREE.Raycaster(
+        new THREE.Vector3(0, 500, 0),
+        new THREE.Vector3(0, -1, 0),
+      );
+      const intersects = raycaster.intersectObject(this.cityModel, true);
+      if (intersects.length > 0) {
+        this.floorLevel = intersects[0].point.y;
+      }
 
+      this.addTrimeshColliders();
       this.addGround();
     } catch (error) {
       console.error('Failed to load city model:', error);
@@ -75,11 +74,47 @@ export class CityMap {
     return this.floorLevel;
   }
 
+  private addTrimeshColliders(): void {
+    const R = this.physicsWorld.RAPIER;
+    this.cityModel!.traverse((child) => {
+      if (!(child instanceof THREE.Mesh) || !child.geometry) return;
+
+      child.updateWorldMatrix(true, false);
+      const geo = child.geometry.clone();
+      geo.applyMatrix4(child.matrixWorld);
+
+      const positions = geo.getAttribute('position');
+      if (!positions) { geo.dispose(); return; }
+
+      const vertices = new Float32Array(positions.array);
+      let indices: Uint32Array;
+      if (geo.index) {
+        indices = new Uint32Array(geo.index.array);
+      } else {
+        indices = new Uint32Array([...Array(vertices.length / 3).keys()]);
+      }
+
+      if (vertices.length === 0 || indices.length === 0) { geo.dispose(); return; }
+
+      const bodyDesc = R.RigidBodyDesc.fixed();
+      const body = this.physicsWorld.createRigidBody(bodyDesc);
+      const colliderDesc = R.ColliderDesc.trimesh(vertices, indices)
+        .setFriction(WORLD_CONFIG.groundFriction)
+        .setRestitution(0.3);
+      this.physicsWorld.createCollider(colliderDesc, body);
+
+      geo.dispose();
+    });
+  }
+
   private addGround(): void {
     const R = this.physicsWorld.RAPIER;
     const groundDesc = R.RigidBodyDesc.fixed().setTranslation(0, this.floorLevel, 0);
     const groundBody = this.physicsWorld.createRigidBody(groundDesc);
-    const colliderDesc = R.ColliderDesc.cuboid(500, 0.1, 500).setTranslation(0, -0.1, 0);
+    const colliderDesc = R.ColliderDesc.cuboid(500, 0.1, 500)
+      .setTranslation(0, -0.1, 0)
+      .setFriction(WORLD_CONFIG.groundFriction)
+      .setRestitution(0.3);
     this.physicsWorld.createCollider(colliderDesc, groundBody);
   }
 
