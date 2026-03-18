@@ -50,8 +50,9 @@ export class Game {
       this.car.loadModel(options?.vehicle ?? 'taxi'),
     ]);
 
-    // Create avatars at city floor level
+    // Reposition car above detected ground level
     const floorLevel = this.cityMap.getFloorLevel();
+    this.car.setSpawnPosition(0, floorLevel + 2, 0);
 
     // Player avatar: use custom Avaturn avatar if selected, else default Zacko
     let playerBlobUrl: string | undefined;

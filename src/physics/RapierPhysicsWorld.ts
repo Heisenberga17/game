@@ -19,8 +19,6 @@ export class RapierPhysicsWorld {
     );
     this.world = new rapier.World(gravity);
     this.world.numSolverIterations = WORLD_CONFIG.solverIterations;
-
-    this.createGround();
   }
 
   /** Async factory — loads Rapier WASM, then constructs the world. */
@@ -53,15 +51,4 @@ export class RapierPhysicsWorld {
     return this.world;
   }
 
-  private createGround(): void {
-    const groundDesc = this.RAPIER.RigidBodyDesc.fixed();
-    const groundBody = this.world.createRigidBody(groundDesc);
-
-    const colliderDesc = this.RAPIER.ColliderDesc.cuboid(500, 0.1, 500)
-      .setTranslation(0, -0.1, 0)
-      .setFriction(WORLD_CONFIG.groundFriction)
-      .setRestitution(0.3);
-
-    this.world.createCollider(colliderDesc, groundBody);
-  }
 }

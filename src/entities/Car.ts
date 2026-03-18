@@ -263,6 +263,15 @@ export class Car implements ICameraTarget {
     this._quaternion.copy(this.chassisMesh.quaternion);
   }
 
+  /** Teleport the chassis to a new position, zeroing all velocity. */
+  setSpawnPosition(x: number, y: number, z: number): void {
+    if (!this.vehiclePhysics) return;
+    const R = this.physicsWorld.RAPIER;
+    this.vehiclePhysics.chassisBody.setTranslation(new R.Vector3(x, y, z), true);
+    this.vehiclePhysics.chassisBody.setLinvel(new R.Vector3(0, 0, 0), true);
+    this.vehiclePhysics.chassisBody.setAngvel(new R.Vector3(0, 0, 0), true);
+  }
+
   // --- ICameraTarget implementation ---
 
   getPosition(): THREE.Vector3 {
