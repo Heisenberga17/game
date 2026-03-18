@@ -60,7 +60,8 @@ export class CityMap {
       );
       const intersects = raycaster.intersectObject(this.cityModel, true);
       if (intersects.length > 0) {
-        this.floorLevel = intersects[0].point.y;
+        // Use lowest intersection (road), not first (rooftop)
+        this.floorLevel = Math.min(...intersects.map(i => i.point.y));
       }
 
       this.addTrimeshColliders();
