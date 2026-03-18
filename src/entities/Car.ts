@@ -136,9 +136,16 @@ export class Car implements ICameraTarget {
     const effectiveMaxSteer = maxSteerVal * (1 - speedRatio * steerSpeedFalloff);
 
     // Steering target: positive = left, negative = right
+    // Use analog stick if available, otherwise digital keys
+    const steerAxis = input.getSteerAxis(); // -1 left, +1 right
     let targetSteer = 0;
-    if (input.isLeft()) targetSteer = effectiveMaxSteer;
-    else if (input.isRight()) targetSteer = -effectiveMaxSteer;
+    if (steerAxis !== 0) {
+      targetSteer = -steerAxis * effectiveMaxSteer; // negate: stick right = negative steer
+    } else if (input.isLeft()) {
+      targetSteer = effectiveMaxSteer;
+    } else if (input.isRight()) {
+      targetSteer = -effectiveMaxSteer;
+    }
 
     // Smooth interpolation (called at fixed 60Hz)
     const rate = targetSteer === 0 ? steerReturnSpeed : steerSpeed;

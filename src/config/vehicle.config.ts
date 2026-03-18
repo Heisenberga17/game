@@ -31,7 +31,7 @@ export const VEHICLE_CONFIG = {
   dampingRelaxation: 2.0,
 
   // --- Traction ---
-  frictionSlip: 1.4,
+  frictionSlip: 3.5,
   rollInfluence: 0.01,
   customSlidingRotationalSpeed: -30,
   useCustomSlidingRotationalSpeed: true,
@@ -39,15 +39,15 @@ export const VEHICLE_CONFIG = {
   // --- Drive / Steer / Brake ---
   maxForce: 1400,
   reverseForceRatio: 0.5,
-  maxSteerVal: 0.8,
-  steerSpeed: 0.5,            // lerp factor per fixed step toward target steer
-  steerReturnSpeed: 0.2,      // lerp factor per fixed step back to center (slower = looser)
+  maxSteerVal: 1.2,
+  steerSpeed: 0.85,           // lerp factor per fixed step toward target steer (snappy)
+  steerReturnSpeed: 0.6,      // lerp factor per fixed step back to center (quick re-center)
   brakeForce: 80,
-  steerSpeedFalloff: 0.1,     // how much max steer reduces at top speed (0–1)
+  steerSpeedFalloff: 0.25,    // how much max steer reduces at top speed (0–1)
 
   // --- Misc ---
   linearDamping: 0.1,
-  angularDamping: 0.3,
+  angularDamping: 0.1,
   maxSpeedApprox: 35,
 
   // --- Wheel ray directions ---

@@ -15,7 +15,7 @@ export const WORLD_CONFIG = {
   groundFriction: 0.5,
 
   // --- Sky / Fog ---
-  skyColor: 0x8faabc,          // hazy NYC sky
+  skyColor: 0x6b3fa0,          // purple sky
   fogNear: 150,
   fogFar: 500,
 

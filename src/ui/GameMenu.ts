@@ -23,7 +23,7 @@ export class GameMenu {
   private overlay: HTMLDivElement;
   private onStart: ((options: GameOptions) => void) | null = null;
 
-  private selectedVehicle: string = 'taxi';
+  private selectedVehicle: string = VEHICLES[0].id;
 
   constructor() {
     this.overlay = document.createElement('div');
@@ -46,7 +46,7 @@ export class GameMenu {
 
     return `
       <div class="menu-container">
-        <h1 class="menu-title">CRAZY TAXI</h1>
+        <h1 class="menu-title">CASA 24 - DRIVER</h1>
 
         <div class="menu-section">
           <h2>Select Vehicle (${VEHICLES.length} available)</h2>
@@ -60,7 +60,7 @@ export class GameMenu {
         </button>
 
         <div class="menu-footer">
-          Use WASD or Arrow Keys to drive | Space to brake<br>
+          WASD / Arrow Keys / PS5 Controller to drive | Space / X to brake<br>
           Vehicle models by Kenney.nl (CC0) | City from Sketchfab
         </div>
       </div>

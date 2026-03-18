@@ -102,6 +102,9 @@ export class Game {
 
   /** Runs once per display frame. Syncs visuals, updates camera, renders. */
   private frameUpdate(dt: number, alpha: number): void {
+    // Poll gamepad state (must happen once per frame before reading input)
+    this.inputManager.pollGamepad();
+
     this.debugManager.beginFrame();
 
     // Camera mode switching
