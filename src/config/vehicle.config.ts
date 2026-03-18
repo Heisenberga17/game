@@ -1,6 +1,6 @@
 /**
  * Vehicle physics and visual configuration.
- * NOT marked `as const` — lil-gui needs to mutate these at runtime.
+ * NOT marked `as const` — Tweakpane needs to mutate these at runtime.
  */
 export const VEHICLE_CONFIG = {
   // --- Chassis ---

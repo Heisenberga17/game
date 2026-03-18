@@ -1,5 +1,5 @@
 import { SceneManager } from '../rendering/SceneManager';
-import { PhysicsWorld } from '../physics/PhysicsWorld';
+import { RapierPhysicsWorld } from '../physics/RapierPhysicsWorld';
 import { InputManager } from './InputManager';
 import { GameLoop } from './GameLoop';
 import { Car } from '../entities/Car';
@@ -9,6 +9,7 @@ import { CameraController, CameraMode } from '../rendering/CameraController';
 import { DebugManager } from '../debug/DebugManager';
 import { GameOptions } from '../ui/GameMenu';
 import { AVATAR_CONFIG } from '../config/avatar.config';
+import { AvaturnManager } from '../utils/AvaturnManager';
 
 /**
  * Top-level game orchestrator.
@@ -16,7 +17,7 @@ import { AVATAR_CONFIG } from '../config/avatar.config';
  */
 export class Game {
   private sceneManager!: SceneManager;
-  private physicsWorld!: PhysicsWorld;
+  private physicsWorld!: RapierPhysicsWorld;
   private inputManager!: InputManager;
   private car!: Car;
   private cityMap!: CityMap;
@@ -31,8 +32,8 @@ export class Game {
     // Rendering
     this.sceneManager = new SceneManager();
 
-    // Physics
-    this.physicsWorld = new PhysicsWorld();
+    // Physics (async — initializes Rapier WASM)
+    this.physicsWorld = await RapierPhysicsWorld.create();
 
     // Input
     this.inputManager = new InputManager();
@@ -51,7 +52,29 @@ export class Game {
 
     // Create avatars at city floor level
     const floorLevel = this.cityMap.getFloorLevel();
-    for (const spawnDef of AVATAR_CONFIG.spawns) {
+
+    // Player avatar: use custom Avaturn avatar if selected, else default Zacko
+    let playerBlobUrl: string | undefined;
+    if (options?.avatarId) {
+      const avaturnMgr = new AvaturnManager();
+      const url = await avaturnMgr.getAvatarBlobURL(options.avatarId);
+      if (url) playerBlobUrl = url;
+    }
+
+    // First spawn is the player avatar (index 0)
+    const playerSpawn = AVATAR_CONFIG.spawns[0];
+    const playerAvatar = new Avatar(this.sceneManager.scene, {
+      modelPath: playerSpawn.modelPath,
+      blobUrl: playerBlobUrl,
+      position: { x: playerSpawn.position.x, y: floorLevel, z: playerSpawn.position.z },
+      scale: playerSpawn.scale,
+      rotationY: playerSpawn.rotationY,
+    });
+    this.avatars.push(playerAvatar);
+
+    // Remaining spawns are NPC wanderers (always default models)
+    for (let i = 1; i < AVATAR_CONFIG.spawns.length; i++) {
+      const spawnDef = AVATAR_CONFIG.spawns[i];
       const avatar = new Avatar(this.sceneManager.scene, {
         modelPath: spawnDef.modelPath,
         position: { x: spawnDef.position.x, y: floorLevel, z: spawnDef.position.z },
@@ -70,11 +93,8 @@ export class Game {
       this.car,
     );
 
-    // Debug tools (stats, GUI, physics wireframes)
-    this.debugManager = new DebugManager(
-      this.sceneManager.scene,
-      this.physicsWorld.getWorld(),
-    );
+    // Debug tools (stats, GUI, renderer monitors)
+    this.debugManager = new DebugManager(this.sceneManager.renderer);
 
     // Game loop with fixed-timestep physics and variable-rate rendering
     this.gameLoop = new GameLoop(
@@ -96,6 +116,10 @@ export class Game {
     if (!this.controllingAvatar) {
       this.car.handleInput(this.inputManager);
     }
+
+    // Update vehicle raycast forces before stepping
+    this.car.updateVehicle(fixedDt);
+
     this.physicsWorld.step(fixedDt);
     this.car.clampVelocity();
   }
@@ -105,7 +129,7 @@ export class Game {
     this.debugManager.beginFrame();
 
     // Camera mode switching
-    // "1" cycles: car → behind avatar → front of avatar
+    // "1" cycles: car -> behind avatar -> front of avatar
     // "2" returns to car
     if (this.inputManager.isToggleAvatarCamera() && this.avatars.length > 0) {
       const currentMode = this.cameraController.getMode();
@@ -139,7 +163,6 @@ export class Game {
     }
 
     this.cameraController.update(dt);
-    this.debugManager.update();
     this.sceneManager.render();
 
     this.debugManager.endFrame();

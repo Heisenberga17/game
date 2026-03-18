@@ -1,14 +1,14 @@
 /**
  * World / environment configuration.
- * NOT marked `as const` — lil-gui needs to mutate these at runtime.
+ * NOT marked `as const` — Tweakpane needs to mutate these at runtime.
  */
 export const WORLD_CONFIG = {
   mapSize: 600,                  // Large open city for driving
 
   // --- Physics ---
   gravity: { x: 0, y: -9.82, z: 0 },
-  solverIterations: 20,
-  physicsSubSteps: 4,
+  solverIterations: 10,
+  physicsSubSteps: 2,
 
   // --- Ground ---
   groundColor: 0x333333,       // dark asphalt
@@ -17,7 +17,7 @@ export const WORLD_CONFIG = {
   // --- Sky / Fog ---
   skyColor: 0x8faabc,          // hazy NYC sky
   fogNear: 150,
-  fogFar: 500,
+  fogFar: 600,
 
   // --- Perimeter walls ---
   wallThickness: 2,

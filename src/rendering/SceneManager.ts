@@ -29,7 +29,7 @@ export class SceneManager {
       70,
       window.innerWidth / window.innerHeight,
       0.1,
-      800,
+      600,
     );
     this.camera.position.set(0, 10, 20);
 
@@ -87,7 +87,7 @@ export class SceneManager {
     const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
     dirLight.position.set(80, 120, 80);
     dirLight.castShadow = true;
-    dirLight.shadow.mapSize.set(4096, 4096);
+    dirLight.shadow.mapSize.set(2048, 2048);
     dirLight.shadow.camera.left = -150;
     dirLight.shadow.camera.right = 150;
     dirLight.shadow.camera.top = 150;

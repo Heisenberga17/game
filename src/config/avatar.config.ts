@@ -5,6 +5,8 @@
 export interface AvatarSpawnDef {
   id: string;
   modelPath: string;
+  /** Optional Blob URL for user-created avatars */
+  blobUrl?: string;
   position: { x: number; y: number; z: number };
   scale?: number;
   rotationY?: number;

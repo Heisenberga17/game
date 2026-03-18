@@ -1,11 +1,10 @@
 import * as THREE from 'three';
-import * as CANNON from 'cannon-es';
-import { VehiclePhysics } from '../physics/VehiclePhysics';
-import { PhysicsWorld } from '../physics/PhysicsWorld';
+import { RapierVehiclePhysics } from '../physics/RapierVehiclePhysics';
+import { RapierPhysicsWorld } from '../physics/RapierPhysicsWorld';
 import { InputManager } from '../core/InputManager';
 import { VEHICLE_CONFIG } from '../config/vehicle.config';
 import { loadModel, enableShadows, fixMaterials, getDimensions } from '../utils/ModelLoader';
-import { syncBodyToMesh, syncWheelToMesh } from '../utils/syncBodyToMesh';
+import { syncRigidBodyToMesh, syncWheelToMesh } from '../utils/syncBodyToMesh';
 import { lerp } from '../utils/math';
 import { ICameraTarget } from '../types';
 import { getVehicleFile } from '../ui/GameMenu';
@@ -13,15 +12,16 @@ import { getVehicleFile } from '../ui/GameMenu';
 /**
  * Player-controlled car entity.
  * Loads GLTF vehicle models from Kenney Car Kit.
+ * Uses Rapier3D physics via RapierVehiclePhysics.
  * Implements ICameraTarget so the camera can follow it.
  */
 export class Car implements ICameraTarget {
-  public vehiclePhysics!: VehiclePhysics;
+  public vehiclePhysics!: RapierVehiclePhysics;
   public chassisMesh: THREE.Group;
   public readonly wheelMeshes: THREE.Mesh[] = [];
 
   private readonly scene: THREE.Scene;
-  private readonly physicsWorld: PhysicsWorld;
+  private readonly physicsWorld: RapierPhysicsWorld;
 
   // Smooth steering state
   private currentSteer = 0;
@@ -30,10 +30,7 @@ export class Car implements ICameraTarget {
   private readonly _position = new THREE.Vector3();
   private readonly _quaternion = new THREE.Quaternion();
 
-  // Pre-allocated vector for anti-flip stabilizer
-  private readonly _worldUp = new CANNON.Vec3();
-
-  constructor(scene: THREE.Scene, physicsWorld: PhysicsWorld) {
+  constructor(scene: THREE.Scene, physicsWorld: RapierPhysicsWorld) {
     this.scene = scene;
     this.physicsWorld = physicsWorld;
     this.chassisMesh = new THREE.Group();
@@ -72,14 +69,14 @@ export class Car implements ICameraTarget {
       this.chassisMesh.add(model);
 
       // Create physics after loading model
-      this.vehiclePhysics = new VehiclePhysics(this.physicsWorld.getWorld());
+      this.vehiclePhysics = new RapierVehiclePhysics(this.physicsWorld);
 
       // Create wheel visuals
       this.createWheels();
     } catch (error) {
       console.warn(`Failed to load vehicle model ${modelPath}, using fallback`);
       this.createFallbackCar();
-      this.vehiclePhysics = new VehiclePhysics(this.physicsWorld.getWorld());
+      this.vehiclePhysics = new RapierVehiclePhysics(this.physicsWorld);
       this.createWheels();
     }
   }
@@ -144,7 +141,7 @@ export class Car implements ICameraTarget {
     const rate = targetSteer === 0 ? steerReturnSpeed : steerSpeed;
     this.currentSteer = lerp(this.currentSteer, targetSteer, rate);
 
-    // Engine: negative force = forward in cannon-es convention
+    // Engine: negative force = forward in cannon-es convention (preserved for Rapier)
     let force = 0;
     if (input.isForward()) force = -maxForce;
     else if (input.isBackward()) force = maxForce * reverseForceRatio;
@@ -171,58 +168,80 @@ export class Car implements ICameraTarget {
     const body = this.vehiclePhysics.chassisBody;
     const maxVel = VEHICLE_CONFIG.maxSpeedApprox * 1.1;
     const maxAngVel = 3.5;
+    const R = this.physicsWorld.RAPIER;
 
     // Hard cap linear velocity
-    const vel = body.velocity;
-    const speed = vel.length();
+    const vel = body.linvel();
+    const speed = Math.sqrt(vel.x * vel.x + vel.y * vel.y + vel.z * vel.z);
     if (speed > maxVel) {
       const s = maxVel / speed;
-      vel.x *= s;
-      vel.y *= s;
-      vel.z *= s;
+      body.setLinvel(new R.Vector3(vel.x * s, vel.y * s, vel.z * s), true);
     }
 
     // Hard cap angular velocity
-    const av = body.angularVelocity;
-    const angSpeed = av.length();
+    const av = body.angvel();
+    const angSpeed = Math.sqrt(av.x * av.x + av.y * av.y + av.z * av.z);
     if (angSpeed > maxAngVel) {
       const s = maxAngVel / angSpeed;
-      av.x *= s;
-      av.y *= s;
-      av.z *= s;
+      body.setAngvel(new R.Vector3(av.x * s, av.y * s, av.z * s), true);
     }
 
     // Anti-flip stabilizer: get the car's local up in world space
-    body.quaternion.vmult(CANNON.Vec3.UNIT_Y, this._worldUp);
-    const upDot = this._worldUp.y; // 1 = upright, 0 = on side, -1 = flipped
+    const rot = body.rotation();
+    const worldUp = this.rotateByQuat({ x: 0, y: 1, z: 0 }, rot);
+    const upDot = worldUp.y; // 1 = upright, 0 = on side, -1 = flipped
 
     if (upDot < 0.85) {
-      // Car is tilting — dampen roll/pitch angular velocity aggressively
-      av.x *= 0.8;
-      av.z *= 0.8;
+      // Car is tilting — dampen roll/pitch angular velocity
+      body.setAngvel(
+        new R.Vector3(av.x * 0.8, av.y, av.z * 0.8),
+        true,
+      );
 
-      // Apply corrective torque to push the car back upright
+      // Apply corrective torque
       const correctionStrength = (1 - upDot) * 80;
-      body.torque.x += -this._worldUp.z * correctionStrength;
-      body.torque.z += this._worldUp.x * correctionStrength;
+      body.applyTorqueImpulse(
+        new R.Vector3(
+          -worldUp.z * correctionStrength * (1 / 60),
+          0,
+          worldUp.x * correctionStrength * (1 / 60),
+        ),
+        true,
+      );
     }
 
     // If car is nearly flipped, force it upright
     if (upDot < 0.1) {
-      av.x *= 0.3;
-      av.z *= 0.3;
-      // Slerp quaternion toward upright
-      const q = body.quaternion;
+      const dampedAv = body.angvel();
+      body.setAngvel(
+        new R.Vector3(dampedAv.x * 0.3, dampedAv.y, dampedAv.z * 0.3),
+        true,
+      );
+      // Extract yaw and reset to upright
+      const q = body.rotation();
       const yaw = Math.atan2(
         2 * (q.w * q.y + q.x * q.z),
         1 - 2 * (q.y * q.y + q.z * q.z),
       );
-      // Build an upright quaternion preserving the yaw
-      body.quaternion.setFromEuler(0, yaw, 0);
-      // Kill most velocity so it doesn't immediately flip again
-      vel.x *= 0.5;
-      vel.z *= 0.5;
+      const halfYaw = yaw * 0.5;
+      body.setRotation(
+        new R.Quaternion(0, Math.sin(halfYaw), 0, Math.cos(halfYaw)),
+        true,
+      );
+      // Kill most velocity
+      const curVel = body.linvel();
+      body.setLinvel(
+        new R.Vector3(curVel.x * 0.5, curVel.y, curVel.z * 0.5),
+        true,
+      );
     }
+  }
+
+  // --- Vehicle physics update (called during fixed update) ---
+
+  updateVehicle(dt: number): void {
+    if (!this.vehiclePhysics) return;
+    this.vehiclePhysics.updateVehicle(dt);
   }
 
   // --- Visual sync (called during frame update) ---
@@ -231,7 +250,7 @@ export class Car implements ICameraTarget {
     if (!this.vehiclePhysics) return;
 
     // Sync chassis body -> mesh group
-    syncBodyToMesh(this.vehiclePhysics.chassisBody, this.chassisMesh);
+    syncRigidBodyToMesh(this.vehiclePhysics.chassisBody, this.chassisMesh);
 
     // Sync each wheel transform -> mesh
     for (let i = 0; i < 4; i++) {
@@ -256,5 +275,22 @@ export class Car implements ICameraTarget {
 
   getSpeed(): number {
     return this.vehiclePhysics?.getSpeed() ?? 0;
+  }
+
+  // --- Internal ---
+
+  private rotateByQuat(
+    v: { x: number; y: number; z: number },
+    q: { x: number; y: number; z: number; w: number },
+  ): { x: number; y: number; z: number } {
+    const ix = q.w * v.x + q.y * v.z - q.z * v.y;
+    const iy = q.w * v.y + q.z * v.x - q.x * v.z;
+    const iz = q.w * v.z + q.x * v.y - q.y * v.x;
+    const iw = -q.x * v.x - q.y * v.y - q.z * v.z;
+    return {
+      x: ix * q.w + iw * -q.x + iy * -q.z - iz * -q.y,
+      y: iy * q.w + iw * -q.y + iz * -q.x - ix * -q.z,
+      z: iz * q.w + iw * -q.z + ix * -q.y - iy * -q.x,
+    };
   }
 }
