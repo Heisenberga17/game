@@ -15,7 +15,7 @@ export const WORLD_CONFIG = {
   groundFriction: 0.5,
 
   // --- Sky / Fog ---
-  skyColor: 0x6b3fa0,          // purple sky
+  skyColor: 0x4a2178,          // deep purple sky
   fogNear: 150,
   fogFar: 500,
 
