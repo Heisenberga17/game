@@ -125,7 +125,7 @@ export class Avatar implements ICameraTarget {
       if (animations.length > 0 && this.mixer) {
         const clip = animations[0];
         // Filter out root-motion position track to prevent sliding/floating
-        clip.tracks = clip.tracks.filter(t => t.name !== 'mixamorigHips.position');
+        clip.tracks = clip.tracks.filter(t => !t.name.endsWith('Hips.position'));
 
         // Walk action — starts playing but blended to 0 weight (idle)
         this.walkAction = this.mixer.clipAction(clip);
