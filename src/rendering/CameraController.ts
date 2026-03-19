@@ -3,6 +3,7 @@ import { CAMERA_CONFIG } from '../config/camera.config';
 import { AVATAR_CONFIG } from '../config/avatar.config';
 import { ICameraTarget } from '../types';
 import { smoothDamp, lerp, clamp } from '../utils/math';
+import { InputManager } from '../core/InputManager';
 
 export enum CameraMode {
   CHASE = 'chase',
@@ -21,6 +22,10 @@ export class CameraController {
   private readonly camera: THREE.PerspectiveCamera;
   private target: ICameraTarget;
   private mode = CameraMode.CHASE;
+
+  // Orbit camera state (third-person)
+  private orbitYaw = 0;
+  private orbitPitch = 0.3;
 
   // Pre-allocated working vectors (never re-created)
   private readonly _idealPosition = new THREE.Vector3();
@@ -48,8 +53,17 @@ export class CameraController {
     return this.mode;
   }
 
+  /** Current orbit yaw angle (world Y rotation). Used for camera-relative avatar movement. */
+  getOrbitYaw(): number {
+    return this.orbitYaw;
+  }
+
   /** Call once per render frame. dt in seconds. */
-  update(dt: number): void {
+  update(dt: number, input?: InputManager): void {
+    if (this.mode === CameraMode.THIRD_PERSON && input) {
+      this.updateOrbitInput(input, dt);
+    }
+
     switch (this.mode) {
       case CameraMode.CHASE:
         this.updateChase(dt);
@@ -61,6 +75,15 @@ export class CameraController {
         this.updateThirdPerson(dt);
         break;
     }
+  }
+
+  /** Apply right-stick input to orbit yaw/pitch. */
+  private updateOrbitInput(input: InputManager, dt: number): void {
+    const cam = AVATAR_CONFIG.camera;
+    const axes = input.getCameraAxes();
+    this.orbitYaw -= axes.x * cam.orbitSensitivity * dt;
+    this.orbitPitch += axes.y * cam.orbitSensitivity * dt;
+    this.orbitPitch = clamp(this.orbitPitch, cam.minPitch, cam.maxPitch);
   }
 
   // ---- Chase mode (existing behaviour) ----
@@ -122,16 +145,19 @@ export class CameraController {
     this.camera.updateProjectionMatrix();
   }
 
-  // ---- Third-person mode (behind avatar for walking) ----
+  // ---- Third-person mode (orbit camera behind avatar) ----
 
   private updateThirdPerson(dt: number): void {
     const pos = this.target.getPosition();
-    const quat = this.target.getQuaternion();
     const cam = AVATAR_CONFIG.camera;
 
-    // Position camera behind the avatar (negative Z in avatar's local space)
-    this._offset.set(0, cam.heightOffset, -cam.distance);
-    this._offset.applyQuaternion(quat);
+    // Spherical offset from orbit angles
+    const cosP = Math.cos(this.orbitPitch);
+    this._offset.set(
+      -Math.sin(this.orbitYaw) * cosP * cam.distance,
+      Math.sin(this.orbitPitch) * cam.distance + cam.heightOffset,
+      -Math.cos(this.orbitYaw) * cosP * cam.distance,
+    );
     this._idealPosition.copy(pos).add(this._offset);
 
     // Look at avatar's chest/head area
@@ -156,25 +182,37 @@ export class CameraController {
   private snapToTarget(): void {
     const pos = this.target.getPosition();
     const quat = this.target.getQuaternion();
+    const cam = AVATAR_CONFIG.camera;
 
-    switch (this.mode) {
-      case CameraMode.CHASE:
-        this._offset.set(0, CAMERA_CONFIG.heightOffset, -CAMERA_CONFIG.followDistance);
-        break;
-      case CameraMode.FRONT_FACING:
-        this._offset.set(0, AVATAR_CONFIG.camera.heightOffset, AVATAR_CONFIG.camera.distance);
-        break;
-      case CameraMode.THIRD_PERSON:
-        this._offset.set(0, AVATAR_CONFIG.camera.heightOffset, -AVATAR_CONFIG.camera.distance);
-        break;
+    if (this.mode === CameraMode.THIRD_PERSON) {
+      // Init orbit angles from avatar's current facing direction
+      const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(quat);
+      this.orbitYaw = Math.atan2(forward.x, forward.z);
+      this.orbitPitch = cam.defaultPitch;
+
+      const cosP = Math.cos(this.orbitPitch);
+      this._offset.set(
+        -Math.sin(this.orbitYaw) * cosP * cam.distance,
+        Math.sin(this.orbitPitch) * cam.distance + cam.heightOffset,
+        -Math.cos(this.orbitYaw) * cosP * cam.distance,
+      );
+    } else {
+      switch (this.mode) {
+        case CameraMode.CHASE:
+          this._offset.set(0, CAMERA_CONFIG.heightOffset, -CAMERA_CONFIG.followDistance);
+          break;
+        case CameraMode.FRONT_FACING:
+          this._offset.set(0, cam.heightOffset, cam.distance);
+          break;
+      }
+      this._offset.applyQuaternion(quat);
     }
-    this._offset.applyQuaternion(quat);
 
     this._currentPosition.copy(pos).add(this._offset);
 
     const lookAtHeight = this.mode === CameraMode.CHASE
       ? CAMERA_CONFIG.lookAtHeight
-      : AVATAR_CONFIG.camera.lookAtHeight;
+      : cam.lookAtHeight;
     this._currentLookAt.set(pos.x, pos.y + lookAtHeight, pos.z);
 
     this.camera.position.copy(this._currentPosition);

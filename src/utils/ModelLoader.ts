@@ -166,6 +166,52 @@ export async function loadFBX(path: string): Promise<THREE.Group> {
 }
 
 /**
+ * Fix materials on FBX models so vertex colors / textures are visible.
+ * PSX-style FBX models often have vertex colors but materials that don't show them.
+ */
+export function fixFBXMaterials(object: THREE.Object3D): void {
+  object.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+
+    const materials = Array.isArray(child.material)
+      ? child.material
+      : [child.material];
+
+    const newMaterials = materials.map((mat: THREE.Material) => {
+      if (!mat) return mat;
+
+      const hasVertexColors = child.geometry?.attributes?.color !== undefined;
+      const oldMat = mat as THREE.MeshStandardMaterial;
+
+      // Preserve any embedded texture from the FBX
+      const map = oldMat.map ?? null;
+
+      // If vertex colors exist, set base color to white so they show through
+      // Otherwise use existing color or gray fallback
+      let color = oldMat.color;
+      if (hasVertexColors) {
+        color = new THREE.Color(0xffffff);
+      } else if (!color || (color.r === 0 && color.g === 0 && color.b === 0 && !map)) {
+        color = new THREE.Color(0x888888);
+      }
+
+      return new THREE.MeshLambertMaterial({
+        color,
+        map,
+        vertexColors: hasVertexColors,
+        side: THREE.DoubleSide,
+        transparent: oldMat.transparent ?? false,
+        opacity: oldMat.opacity ?? 1,
+      });
+    });
+
+    child.material = Array.isArray(child.material)
+      ? newMaterials
+      : newMaterials[0];
+  });
+}
+
+/**
  * Get bounding box of an object (useful for physics body sizing).
  */
 export function getBoundingBox(object: THREE.Object3D): THREE.Box3 {

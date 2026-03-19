@@ -1,11 +1,13 @@
 import * as THREE from 'three';
 import { ICameraTarget } from '../types';
 import { AVATAR_CONFIG } from '../config/avatar.config';
-import { loadModel, loadFBX, enableShadows } from '../utils/ModelLoader';
+import { loadModel, loadFBX, enableShadows, fixFBXMaterials } from '../utils/ModelLoader';
 import { InputManager } from '../core/InputManager';
 
 export interface AvatarConfig {
   modelPath: string;
+  modelType?: 'glb' | 'fbx';
+  texturePath?: string;
   position: { x: number; y: number; z: number };
   scale?: number;
   rotationY?: number;
@@ -41,8 +43,17 @@ export class Avatar implements ICameraTarget {
   private npcDirection = new THREE.Vector3(0, 0, 1);
   private readonly spawnOrigin = new THREE.Vector3();
 
+  // Smooth movement state
+  private currentSpeed = 0;
+
+  // Jump state
+  private _velocityY = 0;
+  private _grounded = true;
+
   // Temp vectors (allocation-free updates)
   private readonly _moveDir = new THREE.Vector3();
+  private readonly _targetQuat = new THREE.Quaternion();
+  private readonly _tempEuler = new THREE.Euler();
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -56,15 +67,53 @@ export class Avatar implements ICameraTarget {
   async load(): Promise<void> {
     try {
       console.log('Loading avatar model:', this.config.modelPath);
-      const gltf = await loadModel(this.config.modelPath);
 
-      // Use scene directly (no clone -- skeleton bindings break with clone)
-      this.mesh = gltf.scene as THREE.Group;
+      let animations: THREE.AnimationClip[] = [];
+
+      if (this.config.modelType === 'fbx') {
+        // FBX path
+        const fbxGroup = await loadFBX(this.config.modelPath);
+
+        // Apply PNG texture if provided, otherwise fall back to fixFBXMaterials
+        if (this.config.texturePath) {
+          const texLoader = new THREE.TextureLoader();
+          try {
+            const texture = await texLoader.loadAsync(this.config.texturePath);
+            texture.colorSpace = THREE.SRGBColorSpace;
+            fbxGroup.traverse((child) => {
+              if (child instanceof THREE.Mesh) {
+                child.material = new THREE.MeshStandardMaterial({
+                  map: texture,
+                  roughness: 0.8,
+                  metalness: 0.1,
+                });
+              }
+            });
+          } catch (e) {
+            console.warn('Texture load failed, using vertex colors:', this.config.texturePath, e);
+            fixFBXMaterials(fbxGroup);
+          }
+        } else {
+          fixFBXMaterials(fbxGroup);
+        }
+
+        this.mesh = fbxGroup;
+        animations = fbxGroup.animations;
+      } else {
+        // GLB path (default)
+        const gltf = await loadModel(this.config.modelPath);
+        this.mesh = gltf.scene as THREE.Group;
+        animations = gltf.animations;
+      }
+
       enableShadows(this.mesh);
 
-      // Scale
-      const scale = this.config.scale ?? AVATAR_CONFIG.defaultScale;
-      this.mesh.scale.setScalar(scale);
+      // Auto-scale avatar to target height (person-sized relative to 4-unit car)
+      const box = new THREE.Box3().setFromObject(this.mesh);
+      const nativeHeight = box.max.y - box.min.y;
+      const targetHeight = AVATAR_CONFIG.targetHeight;
+      const autoScale = nativeHeight > 0 ? targetHeight / nativeHeight : 1;
+      this.mesh.scale.setScalar(autoScale);
 
       // Position and rotation
       this.mesh.position.copy(this._position);
@@ -79,15 +128,10 @@ export class Avatar implements ICameraTarget {
       this.mixer = new THREE.AnimationMixer(this.mesh);
 
       // Play idle animation from the model
-      if (gltf.animations.length > 0) {
-        const clip = gltf.animations[0];
-        console.log('Idle clip:', clip.name, 'duration:', clip.duration, 'tracks:', clip.tracks.length);
-        console.log('Idle track names (first 5):', clip.tracks.slice(0, 5).map(t => t.name));
+      if (animations.length > 0) {
+        const clip = animations[0];
         this.idleAction = this.mixer.clipAction(clip);
         this.idleAction.play();
-        console.log('Idle action playing, weight:', this.idleAction.getEffectiveWeight());
-      } else {
-        console.warn('No animations found in avatar model!');
       }
 
       // Try to load walk animation
@@ -116,12 +160,15 @@ export class Avatar implements ICameraTarget {
    */
   private remapAnimationClip(clip: THREE.AnimationClip): THREE.AnimationClip {
     for (const track of clip.tracks) {
-      // Track names look like "mixamorig:Hips.position" or "mixamorig:LeftArm.quaternion"
+      // Track names look like "mixamorig:Hips.position" or "mixamorigLeftArm.quaternion"
       const dotIdx = track.name.indexOf('.');
       if (dotIdx === -1) continue;
 
       const bonePart = track.name.substring(0, dotIdx);
       const propPart = track.name.substring(dotIdx);
+
+      // If the bone name already matches, no remapping needed
+      if (this.boneNames.has(bonePart)) continue;
 
       // Strip "mixamorig:" or "mixamorig" prefix (FBXLoader may drop the colon)
       const stripped = bonePart.replace(/^mixamorig:?/, '');
@@ -184,11 +231,11 @@ export class Avatar implements ICameraTarget {
     }
   }
 
-  update(dt: number, inputManager?: InputManager): void {
+  update(dt: number, inputManager?: InputManager, cameraYaw?: number): void {
     if (!this.mesh) return;
 
     if (this.playerControlled && inputManager) {
-      this.updatePlayerControl(dt, inputManager);
+      this.updatePlayerControl(dt, inputManager, cameraYaw ?? 0);
     } else {
       this.updateNPC(dt);
     }
@@ -203,38 +250,80 @@ export class Avatar implements ICameraTarget {
     }
   }
 
-  private updatePlayerControl(dt: number, input: InputManager): void {
+  private updatePlayerControl(dt: number, input: InputManager, cameraYaw: number): void {
     const walkSpeed = AVATAR_CONFIG.walkSpeed;
-    let moving = false;
+    const { acceleration, deceleration, turnSpeed, inputDeadzone, jumpForce, gravity } = AVATAR_CONFIG.movement;
 
-    this._moveDir.set(0, 0, 0);
+    // Read analog input
+    const axes = input.getMovementAxes();
+    const inputMag = Math.min(1, Math.sqrt(axes.x * axes.x + axes.y * axes.y));
 
-    if (input.isForward()) { this._moveDir.z += 1; moving = true; }
-    if (input.isBackward()) { this._moveDir.z -= 1; moving = true; }
-    if (input.isLeft()) { this._moveDir.x += 1; moving = true; }
-    if (input.isRight()) { this._moveDir.x -= 1; moving = true; }
+    if (inputMag > inputDeadzone) {
+      // Rotate input axes by camera yaw to get world-space direction
+      const cosY = Math.cos(cameraYaw);
+      const sinY = Math.sin(cameraYaw);
+      const worldX = -axes.x * cosY + axes.y * sinY;
+      const worldZ = axes.x * sinY + axes.y * cosY;
 
-    if (moving) {
-      this._moveDir.normalize();
+      // Smooth speed toward target
+      const targetSpeed = walkSpeed * inputMag;
+      const accFactor = 1 - Math.pow(2, -acceleration * dt);
+      this.currentSpeed += (targetSpeed - this.currentSpeed) * accFactor;
 
-      // Face movement direction
-      const angle = Math.atan2(this._moveDir.x, this._moveDir.z);
-      this._quaternion.setFromEuler(new THREE.Euler(0, angle, 0));
+      // Compute target rotation from camera-relative input angle
+      const angle = Math.atan2(worldX, worldZ);
+      this._targetQuat.setFromEuler(this._tempEuler.set(0, angle, 0));
 
-      // Move
-      this._position.x += this._moveDir.x * walkSpeed * dt;
-      this._position.z += this._moveDir.z * walkSpeed * dt;
+      // Smooth rotation via slerp
+      const turnFactor = 1 - Math.pow(2, -turnSpeed * dt);
+      this._quaternion.slerp(this._targetQuat, turnFactor);
 
-      this.speed = walkSpeed;
-      if (this.walkAction && this.walkAction.getEffectiveWeight() < 0.5) {
-        this.crossfade(true);
-      }
+      // Move along facing direction (extract forward from smoothed quaternion)
+      this._moveDir.set(0, 0, 1).applyQuaternion(this._quaternion);
+      this._position.x += this._moveDir.x * this.currentSpeed * dt;
+      this._position.z += this._moveDir.z * this.currentSpeed * dt;
     } else {
-      this.speed = 0;
-      if (this.walkAction && this.walkAction.getEffectiveWeight() > 0.5) {
-        this.crossfade(false);
+      // Decelerate to zero
+      const decFactor = 1 - Math.pow(2, -deceleration * dt);
+      this.currentSpeed *= (1 - decFactor);
+      if (this.currentSpeed < 0.01) this.currentSpeed = 0;
+
+      // Keep sliding in facing direction while decelerating
+      if (this.currentSpeed > 0) {
+        this._moveDir.set(0, 0, 1).applyQuaternion(this._quaternion);
+        this._position.x += this._moveDir.x * this.currentSpeed * dt;
+        this._position.z += this._moveDir.z * this.currentSpeed * dt;
       }
     }
+
+    // Jump
+    if (input.isJump() && this._grounded) {
+      this._velocityY = jumpForce;
+      this._grounded = false;
+    }
+
+    if (!this._grounded) {
+      this._velocityY -= gravity * dt;
+      this._position.y += this._velocityY * dt;
+      if (this._position.y <= this.spawnOrigin.y) {
+        this._position.y = this.spawnOrigin.y;
+        this._velocityY = 0;
+        this._grounded = true;
+      }
+    }
+
+    this.speed = this.currentSpeed;
+    this.updateAnimationBlend();
+  }
+
+  /** Blend walk/idle animations proportionally to current speed. */
+  private updateAnimationBlend(): void {
+    if (!this.idleAction || !this.walkAction) return;
+
+    const speedRatio = Math.min(1, this.currentSpeed / AVATAR_CONFIG.walkSpeed);
+    this.walkAction.setEffectiveWeight(speedRatio);
+    this.idleAction.setEffectiveWeight(1 - speedRatio);
+    this.walkAction.setEffectiveTimeScale(Math.max(0.3, speedRatio));
   }
 
   private updateNPC(dt: number): void {

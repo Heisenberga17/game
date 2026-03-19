@@ -1,10 +1,13 @@
 /**
- * Game menu UI for selecting vehicle.
+ * Game menu UI for selecting vehicle and character.
  * City is now a single Sketchfab model.
  */
 
+import { CHARACTER_DEFS } from '../config/avatar.config';
+
 export interface GameOptions {
   vehicle: string;
+  character: string;
 }
 
 // Vehicle model definitions from Kenney Car Kit (curated selection)
@@ -24,6 +27,7 @@ export class GameMenu {
   private onStart: ((options: GameOptions) => void) | null = null;
 
   private selectedVehicle: string = VEHICLES[0].id;
+  private selectedCharacter: string = CHARACTER_DEFS[0].id;
 
   constructor() {
     this.overlay = document.createElement('div');
@@ -44,9 +48,26 @@ export class GameMenu {
       `;
     }).join('');
 
+    // Generate character buttons
+    const characterButtons = CHARACTER_DEFS.map((c, i) => {
+      const selected = i === 0 ? 'selected' : '';
+      return `
+        <button class="option-btn ${selected}" data-character="${c.id}">
+          <div class="option-label">${c.name}</div>
+        </button>
+      `;
+    }).join('');
+
     return `
       <div class="menu-container">
         <h1 class="menu-title">CASA 24 - DRIVER</h1>
+
+        <div class="menu-section">
+          <h2>Select Character</h2>
+          <div class="option-grid" id="character-options">
+            ${characterButtons}
+          </div>
+        </div>
 
         <div class="menu-section">
           <h2>Select Vehicle (${VEHICLES.length} available)</h2>
@@ -61,13 +82,23 @@ export class GameMenu {
 
         <div class="menu-footer">
           WASD / Arrow Keys / PS5 Controller to drive | Space / X to brake<br>
-          Vehicle models by Kenney.nl (CC0) | City from Sketchfab
+          Press 1 for avatar camera | Press 2 for car camera
         </div>
       </div>
     `;
   }
 
   private bindEvents(): void {
+    // Character selection
+    const charBtns = this.overlay.querySelectorAll('[data-character]');
+    charBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        charBtns.forEach((b) => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        this.selectedCharacter = (btn as HTMLElement).dataset.character!;
+      });
+    });
+
     // Vehicle selection
     const vehicleBtns = this.overlay.querySelectorAll('[data-vehicle]');
     vehicleBtns.forEach((btn) => {
@@ -85,6 +116,7 @@ export class GameMenu {
       if (this.onStart) {
         this.onStart({
           vehicle: this.selectedVehicle,
+          character: this.selectedCharacter,
         });
       }
     });

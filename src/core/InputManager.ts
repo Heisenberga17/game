@@ -201,6 +201,18 @@ export class InputManager {
     return false;
   }
 
+  /** Right stick axes for camera orbit. Returns { x, y } with deadzone applied. Keyboard returns { 0, 0 }. */
+  getCameraAxes(): { x: number; y: number } {
+    const x = this.getAxis(GP_AXIS.RIGHT_X);
+    const y = this.getAxis(GP_AXIS.RIGHT_Y);
+    return { x, y };
+  }
+
+  /** True on the first frame jump is pressed (Space or Cross button). */
+  isJump(): boolean {
+    return this.isJustPressed(['Space']) || this.isButtonJustPressed(GP_BUTTON.CROSS);
+  }
+
   isToggleAvatarCamera(): boolean {
     return this.isJustPressed(INPUT_CONFIG.cameraModeAvatar)
       || this.isButtonJustPressed(GP_BUTTON.TRIANGLE);
@@ -224,6 +236,35 @@ export class InputManager {
     window.removeEventListener('blur', this.handleBlur);
     window.removeEventListener('gamepadconnected', this.handleGamepadConnected);
     window.removeEventListener('gamepaddisconnected', this.handleGamepadDisconnected);
+  }
+
+  /**
+   * Analog movement axes for avatar control.
+   * Gamepad: raw stick values with deadzone. Keyboard/D-pad: full ±1.0.
+   * Returns { x: -1..+1 (left/right), y: -1..+1 (backward/forward) }.
+   */
+  getMovementAxes(): { x: number; y: number } {
+    // Gamepad analog stick takes priority
+    const stickX = this.getAxis(GP_AXIS.LEFT_X);
+    const stickY = -this.getAxis(GP_AXIS.LEFT_Y); // invert: stick down is +1, we want forward = +1
+    if (stickX !== 0 || stickY !== 0) {
+      return { x: stickX, y: stickY };
+    }
+
+    // D-pad
+    let dx = 0, dy = 0;
+    if (this.isButtonPressed(GP_BUTTON.DPAD_LEFT)) dx -= 1;
+    if (this.isButtonPressed(GP_BUTTON.DPAD_RIGHT)) dx += 1;
+    if (this.isButtonPressed(GP_BUTTON.DPAD_UP)) dy += 1;
+    if (this.isButtonPressed(GP_BUTTON.DPAD_DOWN)) dy -= 1;
+    if (dx !== 0 || dy !== 0) return { x: dx, y: dy };
+
+    // Keyboard
+    if (this.anyPressed(INPUT_CONFIG.left)) dx -= 1;
+    if (this.anyPressed(INPUT_CONFIG.right)) dx += 1;
+    if (this.anyPressed(INPUT_CONFIG.forward)) dy += 1;
+    if (this.anyPressed(INPUT_CONFIG.backward)) dy -= 1;
+    return { x: dx, y: dy };
   }
 
   // ---- Internal helpers ----

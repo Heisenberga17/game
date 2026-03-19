@@ -1,55 +1,65 @@
 # CASA 24 - DRIVER
 
-A 3D driving game built with Three.js. Drive around a city with Pixar-style vehicles (Lightning McQueen, Guido, and more), explore on foot as an avatar, and play with a keyboard or PS5 controller.
+A 3D driving game built with Three.js. Drive around a city with Pixar-style vehicles (Lightning McQueen, Guido, and more), walk around as a custom character, and play with a keyboard or PS5 controller.
 
 ---
 
-## STEP 1: Open Your Terminal
+## Before You Start
 
-The terminal is where you will type all the commands to set up and run the game. You only need to open it once.
+You will need:
+- A Windows computer (Windows 10 or 11)
+- An internet connection
+- About 15 minutes of time
 
-### On Mac
+You will install two free programs (**Node.js** and **Git**), then download and run the game. Every single step is explained below — just follow them in order.
 
-1. Press **Cmd + Space** on your keyboard (this opens Spotlight Search)
-2. A search bar appears in the center of your screen
-3. Type the word **Terminal**
-4. Press **Enter**
-5. A black/white window with text appears — that's your terminal
+---
 
-### On Windows
+## STEP 1: Open the Command Prompt
 
-1. Click the **Start** button (bottom left corner of your screen, the Windows logo)
+The Command Prompt is a text window where you type commands to set up and run the game. Think of it like texting your computer instructions.
+
+1. Click the **Start** button (the Windows logo at the bottom-left of your screen)
 2. Type **cmd**
-3. You'll see **"Command Prompt"** appear in the results
-4. Click on it
-5. A black window with white text appears — that's your terminal
+3. You will see **"Command Prompt"** appear in the search results
+4. **Right-click** on it and select **"Run as administrator"**
+5. If a popup asks **"Do you want to allow this app to make changes to your device?"**, click **Yes**
+6. A black window with white text appears — this is your Command Prompt
 
-> Keep this window open for the entire process. Every command below gets typed into this window and you press **Enter** after each one.
+> **Keep this window open for the entire process.** Every command below gets typed into this window. After typing each command, press the **Enter** key on your keyboard to run it.
 
 ---
 
 ## STEP 2: Install Node.js
 
-Node.js is the program that runs the game on your computer. Without it, nothing works.
+Node.js is the engine that runs the game on your computer. Without it, the game cannot start.
 
-1. Open your web browser (Chrome, Safari, Edge, Firefox — any works)
-2. Go to this address: **https://nodejs.org**
-3. You'll see a big green button that says **"LTS"** with a version number (something like 20.x.x). Click that button
-4. A file will download (around 30 MB). Wait for it to finish
-5. Open the downloaded file:
-   - **Mac**: It's a `.pkg` file. Double-click it
-   - **Windows**: It's a `.msi` file. Double-click it
-6. An installer window opens. Follow these steps:
-   - Click **"Continue"** (Mac) or **"Next"** (Windows)
-   - Click **"Continue"** / **"Next"** again
-   - Click **"Agree"** if it asks you to accept the license
-   - Click **"Install"**
-   - If it asks for your password, type your computer's password and click **"OK"**
-   - Click **"Close"** when it says the installation is complete
+### Download Node.js
+
+1. Open your web browser (Chrome, Edge, or Firefox)
+2. Go to this website: **https://nodejs.org**
+3. You will see two big buttons. Click the one that says **"LTS"** (it will have a number like "20.x.x" — the exact number doesn't matter)
+4. A file will start downloading (about 30 MB). Wait for it to finish
+5. Look at the bottom of your browser or your Downloads folder — you will see a file named something like `node-v20.11.0-x64.msi`
+
+### Install Node.js
+
+1. **Double-click** the downloaded `.msi` file
+2. An installer window opens. Here's what to do on each screen:
+   - **Welcome screen**: Click **Next**
+   - **License Agreement**: Check the box that says **"I accept the terms in the License Agreement"**, then click **Next**
+   - **Destination Folder**: Don't change anything. Click **Next**
+   - **Custom Setup**: Don't change anything. Click **Next**
+   - **Tools for Native Modules**: Don't change anything. Click **Next**
+   - **Ready to install**: Click **Install**
+   - If Windows asks for permission, click **Yes**
+   - **Completed**: Click **Finish**
 
 ### Verify Node.js is installed
 
-Go back to your terminal and type this command, then press **Enter**:
+**IMPORTANT: Close your Command Prompt and open a new one** (repeat Step 1). This is needed so the Command Prompt knows Node.js exists.
+
+Now type this command and press **Enter**:
 
 ```
 node --version
@@ -61,9 +71,7 @@ You should see something like:
 v20.11.0
 ```
 
-The exact number doesn't matter as long as you see a version number. If you see **"command not found"**, close the terminal, open a new one, and try again. If it still doesn't work, restart your computer and try once more.
-
-Now verify npm (it comes bundled with Node.js). Type this and press **Enter**:
+Now type this and press **Enter**:
 
 ```
 npm --version
@@ -75,26 +83,34 @@ You should see something like:
 10.2.4
 ```
 
-If both commands showed version numbers, you're good. Move to the next step.
+> If either command says **"is not recognized as an internal or external command"**, restart your computer, open a new Command Prompt, and try again.
 
 ---
 
 ## STEP 3: Install Git
 
-Git is the tool that downloads the game's source code from the internet.
+Git is the tool that downloads the game's code from the internet (like a specialized downloader for code projects).
 
-1. Open your browser and go to: **https://git-scm.com/downloads**
-2. Click on your operating system:
-   - **Mac**: Click **"macOS"**
-   - **Windows**: Click **"Windows"**
-3. Download the installer and open it
-4. Follow the installer:
-   - **On Mac**: If it says the app "can't be opened because it's from an unidentified developer", go to **System Preferences > Security & Privacy** and click **"Open Anyway"**
-   - **On Windows**: Just keep clicking **"Next"** for every screen. Don't change any options. Click **"Install"** at the end, then **"Finish"**
+### Download Git
+
+1. Open your web browser
+2. Go to this website: **https://git-scm.com/downloads/win**
+3. The download should start automatically. If it doesn't, click **"Click here to download manually"**
+4. Wait for the file to download (about 55 MB). It will be named something like `Git-2.43.0-64-bit.exe`
+
+### Install Git
+
+1. **Double-click** the downloaded `.exe` file
+2. If Windows asks for permission, click **Yes**
+3. The installer has **many screens**. Here's the easy approach: **just keep clicking "Next" on every screen without changing anything**. Don't worry about the options — the defaults are fine
+4. On the final screen, click **Install**
+5. When it finishes, click **Finish**
 
 ### Verify Git is installed
 
-Go back to your terminal (or open a new one) and type:
+**Close your Command Prompt and open a new one** (repeat Step 1).
+
+Type this and press **Enter**:
 
 ```
 git --version
@@ -103,22 +119,34 @@ git --version
 You should see something like:
 
 ```
-git version 2.43.0
+git version 2.43.0.windows.1
 ```
 
-If you see a version number, you're good. Move on.
+> If it says **"is not recognized"**, restart your computer, open a new Command Prompt, and try again.
 
 ---
 
 ## STEP 4: Download the Game
 
-Now you'll download the game's code. In your terminal, type this exact command and press **Enter**:
+Now you will download the game's code to your computer.
 
-```bash
+### Choose where to put the game
+
+First, let's navigate to your Desktop so the game folder ends up somewhere easy to find. Type this and press **Enter**:
+
+```
+cd %USERPROFILE%\Desktop
+```
+
+### Download the game
+
+Now type this exact command and press **Enter**:
+
+```
 git clone https://github.com/Heisenberga17/game.git
 ```
 
-You'll see something like:
+You will see text scrolling like:
 
 ```
 Cloning into 'game'...
@@ -127,43 +155,53 @@ remote: Counting objects: 100% (250/250), done.
 Receiving objects: 100% (250/250), 15.00 MiB | 5.00 MiB/s, done.
 ```
 
-Wait for it to finish. Now navigate into the game folder by typing:
+Wait until it finishes and you see the blinking cursor again. A new folder called **"game"** now exists on your Desktop.
 
-```bash
+### Enter the game folder
+
+Type this and press **Enter**:
+
+```
 cd game
 ```
 
-> **What just happened?** You downloaded a copy of the entire game to your computer. The `cd` command moves your terminal "inside" the game folder so the next commands run in the right place.
+Your Command Prompt should now show something like:
+
+```
+C:\Users\YourName\Desktop\game>
+```
 
 ---
 
 ## STEP 5: Install the Game's Dependencies
 
-The game uses external libraries (3D graphics engine, physics engine, etc.). You need to download them. Type this and press **Enter**:
+The game uses external libraries (a 3D graphics engine, a physics engine, etc.). This command downloads them all automatically.
 
-```bash
+Type this and press **Enter**:
+
+```
 npm install
 ```
 
-This will take 30 seconds to 2 minutes. You'll see a progress bar and lots of text scrolling. Wait until you see something like:
+This will take **30 seconds to 2 minutes**. You will see a progress bar and lots of text. Wait until it finishes and says something like:
 
 ```
 added 45 packages in 12s
 ```
 
-> **Don't worry** about yellow "WARN" messages — those are normal and harmless. Only red "ERR!" messages are a problem (and they're rare).
+> **Don't worry** about yellow "WARN" messages — those are completely normal. Only red "ERR!" messages are problems (and they're rare).
 
 ---
 
 ## STEP 6: Run the Game
 
-Type this command and press **Enter**:
+Type this and press **Enter**:
 
-```bash
+```
 npm run dev
 ```
 
-You'll see:
+You will see:
 
 ```
   VITE v6.4.1  ready in 150 ms
@@ -172,78 +210,88 @@ You'll see:
   -> Network: use --host to expose
 ```
 
-The game server is now running.
+The game server is now running on your computer!
 
 ### Open the Game in Your Browser
 
-1. Open your web browser (Chrome recommended for best performance)
-2. Click on the address bar at the top (where it says "google.com" or similar)
-3. Type this exact address and press **Enter**:
+1. Open **Google Chrome** (recommended for best performance — if you don't have it, any browser works)
+2. Click on the **address bar** at the top of the browser (where it says the current website address)
+3. Type this exact address:
 
 ```
 http://localhost:5173
 ```
 
-4. The game menu appears with the title **CASA 24 - DRIVER**
-5. Click on any vehicle to select it (Lightning McQueen is selected by default)
-6. Click the **START GAME** button
+4. Press **Enter**
+5. The game menu appears with the title **CASA 24 - DRIVER**
 
-You're playing!
+### Start Playing
 
-> **Important**: Keep the terminal window open while you play. If you close it, the game stops. Just leave it in the background.
+1. **Select a character** — click on one of the three characters (Bo.Wlie, Pyro, or Zacko)
+2. **Select a vehicle** — scroll through the vehicle list and click on one (Lightning McQueen is selected by default)
+3. Click the **START GAME** button
+4. You're in the game!
+
+> **IMPORTANT**: Keep the Command Prompt window open while you play. If you close it, the game stops. Just leave it in the background (you can minimize it).
 
 ---
 
 ## How to Play
 
-### Keyboard Controls
+### Keyboard Controls — Driving
 
 | Action | Keys |
 |---|---|
-| **Accelerate (go forward)** | `W` or `Arrow Up` |
-| **Reverse (go backward)** | `S` or `Arrow Down` |
-| **Turn Left** | `A` or `Arrow Left` |
-| **Turn Right** | `D` or `Arrow Right` |
+| **Go forward** | `W` or `Up Arrow` |
+| **Go backward** | `S` or `Down Arrow` |
+| **Turn left** | `A` or `Left Arrow` |
+| **Turn right** | `D` or `Right Arrow` |
 | **Handbrake (stop fast)** | `Space bar` |
-| **Walk around as avatar** | Press `1` on your keyboard (above Q, not numpad) |
-| **Go back to car** | Press `2` on your keyboard |
 
-> **Tip:** When in avatar mode, press `1` again to switch between behind-the-character and front-facing camera views.
+### Keyboard Controls — Walking as Your Character
+
+| Action | Keys |
+|---|---|
+| **Switch to avatar (walk around)** | Press `1` (above Q, not the numpad) |
+| **Switch camera view** | Press `1` again to toggle between behind and front views |
+| **Go back to car** | Press `2` |
+| **Walk forward** | `W` or `Up Arrow` |
+| **Walk backward** | `S` or `Down Arrow` |
+| **Walk left** | `A` or `Left Arrow` |
+| **Walk right** | `D` or `Right Arrow` |
 
 ### PS5 Controller (DualSense)
 
-You can play with a PS5 controller. Here's how to connect it:
+You can play with a PlayStation 5 controller.
 
-#### Connect via USB Cable
+#### How to Connect via USB Cable
 
-1. Plug a USB-C cable into the top of the PS5 controller
+1. Plug a **USB-C cable** into the top of the PS5 controller
 2. Plug the other end into your computer
 3. The controller light bar will turn on
-4. Go to the game in your browser and press any button on the controller
-5. Done — it should work immediately
+4. Click anywhere on the game in your browser
+5. Press any button on the controller — it will start working
 
-#### Connect via Bluetooth
+#### How to Connect via Bluetooth
 
 1. Make sure the PS5 controller is **off** (light bar not lit)
-2. Hold down the **PS button** (center button with the PlayStation logo) and the **Share button** (small button to the left of the touchpad) **at the same time** for 3 seconds
-3. The light bar will start **flashing blue rapidly** — this means it's in pairing mode
-4. On your computer:
-   - **Mac**: Go to **System Settings > Bluetooth**, find "DualSense Wireless Controller" and click **"Connect"**
-   - **Windows**: Go to **Settings > Bluetooth & devices > Add device > Bluetooth**, find "Wireless Controller" and click it
-5. The light bar will turn solid — it's connected
-6. Go to the game in your browser and press any button on the controller
+2. Hold down the **PS button** (center PlayStation logo) and the **Share button** (small button left of the touchpad) **at the same time** for 3 seconds
+3. The light bar will start **flashing blue rapidly** — it's in pairing mode
+4. On your computer: go to **Settings > Bluetooth & devices > Add device > Bluetooth**
+5. Find **"Wireless Controller"** in the list and click it
+6. The light bar will turn solid — it's connected
+7. Go to the game in your browser and press any button
 
-#### Controller Button Map
+#### Controller Buttons
 
 | Action | Button |
 |---|---|
-| **Accelerate** | **R2** (right trigger, press hard for more speed) |
-| **Brake** | **L2** (left trigger) or **X button** (bottom face button) |
-| **Steer** | **Left Stick** (tilt left/right — it's analog so small tilts = gentle turns) |
-| **Steer (digital)** | **D-Pad** left/right |
-| **Forward/Backward** | **Left Stick** up/down or **D-Pad** up/down |
-| **Walk as avatar** | **Triangle** (top face button) |
-| **Back to car** | **Options** (small button to the right of the touchpad) |
+| **Accelerate** | **R2** (right trigger — press harder for more speed) |
+| **Brake** | **L2** (left trigger) or **X button** |
+| **Steer** | **Left Stick** (tilt left or right) |
+| **Forward / Backward** | **Left Stick** up/down or **D-Pad** up/down |
+| **Walk as avatar** | **Triangle** |
+| **Back to car** | **Options** (small button right of the touchpad) |
 
 ---
 
@@ -251,60 +299,83 @@ You can play with a PS5 controller. Here's how to connect it:
 
 | Vehicle | Description |
 |---|---|
-| Lightning McQueen | Red race car from Cars |
-| Cal Weathers | Race car from Cars 3 |
+| Lightning McQueen | Red race car from Pixar's Cars |
+| Cal Weathers | Blue race car from Cars 3 |
 | Guido | Small blue forklift from Cars |
 | Taxi | Classic yellow taxi |
-| Police | Police cruiser |
+| Police | Police cruiser with lights |
 | Fire Truck | Red fire truck |
 | Race Car | Generic race car |
-| Truck | Large truck |
+| Truck | Large cargo truck |
+
+## Available Characters
+
+| Character | Description |
+|---|---|
+| Bo.Wlie | Smooth lines, clean style |
+| Pyro | Burns the park down |
+| Zacko | Raw street energy |
 
 ---
 
 ## How to Stop the Game
 
-1. Go back to your terminal (the black/white window from earlier)
-2. Press **Ctrl + C** (hold the Ctrl key and press C)
-3. The server stops and you'll see your normal terminal prompt again
+1. Go back to your Command Prompt window
+2. Press **Ctrl + C** (hold the **Ctrl** key and press **C** at the same time)
+3. If it asks **"Terminate batch job (Y/N)?"**, type **Y** and press **Enter**
+4. The server stops
 
-To play again later, just do:
+---
 
-```bash
-cd game
+## How to Play Again Later
+
+Every time you want to play again after closing everything:
+
+1. Open the **Command Prompt** (Start > type **cmd** > press Enter)
+2. Navigate to the game folder:
+
+```
+cd %USERPROFILE%\Desktop\game
+```
+
+3. Start the game:
+
+```
 npm run dev
 ```
 
-Then open **http://localhost:5173** in your browser again.
+4. Open your browser and go to **http://localhost:5173**
+
+That's it — just those 3 steps from now on.
 
 ---
 
 ## How to Update the Game
 
-If the game has been updated on GitHub, you can get the latest version:
+If the game has been updated online and you want the latest version:
 
-1. Open your terminal
+1. Open the Command Prompt
 2. Navigate to the game folder:
 
-```bash
-cd game
+```
+cd %USERPROFILE%\Desktop\game
 ```
 
-3. Download the updates:
+3. Download updates:
 
-```bash
+```
 git pull
 ```
 
 4. Install any new dependencies:
 
-```bash
+```
 npm install
 ```
 
 5. Run the game:
 
-```bash
+```
 npm run dev
 ```
 
@@ -312,60 +383,82 @@ npm run dev
 
 ## Troubleshooting
 
-### "command not found: node" or "command not found: npm"
+### "node is not recognized as an internal or external command"
 
 Node.js is not installed correctly.
 
 1. Go back to **STEP 2** and reinstall Node.js
-2. After installing, **close your terminal completely** and open a new one
+2. **Close your Command Prompt completely** and open a brand new one
 3. Try `node --version` again
 4. If it still doesn't work, **restart your computer** and try again
 
-### "command not found: git"
+### "git is not recognized as an internal or external command"
 
 Git is not installed correctly.
 
 1. Go back to **STEP 3** and reinstall Git
-2. After installing, **close your terminal completely** and open a new one
+2. **Close your Command Prompt completely** and open a brand new one
 3. Try `git --version` again
+4. If it still doesn't work, **restart your computer** and try again
 
 ### "npm ERR!" when running npm install
 
-1. Make sure you're inside the game folder (you ran `cd game`)
+1. Make sure you are inside the game folder (your Command Prompt should show `...\game>`)
 2. Try running it again: `npm install`
-3. If it keeps failing, delete the `node_modules` folder and try again:
-   - **Mac**: `rm -rf node_modules && npm install`
-   - **Windows**: `rmdir /s /q node_modules` then `npm install`
+3. If it keeps failing, delete the downloaded packages and try again:
+
+```
+rmdir /s /q node_modules
+npm install
+```
 
 ### The page at localhost:5173 doesn't load / says "can't reach this page"
 
-1. Make sure the terminal still shows the server running (the "VITE ready" message). If you accidentally closed it, run `npm run dev` again
-2. Make sure you typed the address correctly: **http://localhost:5173** (not https, not .com)
+1. Make sure the Command Prompt still shows the server running (the "VITE ready" message). If you closed it, run `npm run dev` again
+2. Make sure you typed the address correctly: **http://localhost:5173** (not http**s**, not .com)
 3. Try a different browser
+4. Check if the terminal shows a different port (like 5174) — use that number instead
 
 ### The game loads but the screen is black
 
 1. Press **F12** on your keyboard to open the browser's developer tools
-2. Click the **"Console"** tab
-3. Look for red error messages — they'll tell you what went wrong
+2. Click the **"Console"** tab at the top
+3. Look for red error messages — they will tell you what went wrong
 4. Most common fix: stop the server (Ctrl + C), run `npm install` again, then `npm run dev`
 
 ### PS5 controller is connected but the game doesn't respond
 
-1. Make sure you're using **Google Chrome** (best gamepad support)
-2. Click anywhere on the game page first (the browser needs focus)
+1. Make sure you are using **Google Chrome** (best gamepad support)
+2. Click anywhere on the game page first (the browser needs to be focused)
 3. Press any button on the controller — the browser needs at least one input to detect it
 4. Try unplugging and replugging the controller
-5. Try going to **chrome://gamepad** in Chrome's address bar to verify the browser sees the controller
+5. Open a new tab and type `chrome://gamepad` in the address bar — this page shows if Chrome can see your controller
 
-### The game is laggy / slow framerate
+### The game is laggy / slow
 
-1. **Close other browser tabs** — each tab uses memory and GPU
-2. **Plug in your laptop** — battery mode reduces GPU performance
-3. **Use Chrome** — it generally has the best WebGL/3D performance
+1. **Close other browser tabs** — each tab uses memory
+2. **Plug in your laptop** — battery mode reduces graphics performance
+3. **Use Chrome** — it has the best 3D performance
 4. **Close other programs** — especially other games or video editors
-5. **Disable browser extensions** — some extensions (like ad blockers) can slow down WebGL
 
 ### Port 5173 is already in use
 
-If you see a message like "Port 5173 is in use, trying another one...", the game will automatically pick a different port (like 5174). Just use whatever address the terminal shows you after "Local:".
+If you see "Port 5173 is in use, trying another one...", the game picks a different port automatically (like 5174). Just use whatever address the Command Prompt shows after "Local:".
+
+### I want to start completely fresh
+
+If something went really wrong and you want to start over from scratch:
+
+1. Delete the **game** folder from your Desktop
+2. Go back to **STEP 4** and follow all steps again
+
+---
+
+## Tech Stack (For Developers)
+
+- **Three.js** — 3D graphics engine
+- **Cannon-es** — Physics engine
+- **Vite** — Development server and build tool
+- **TypeScript** — Programming language
+- **lil-gui** — Debug controls panel (the sliders on the right side of the screen)
+- **stats.js** — FPS counter (top-left corner)

@@ -5,6 +5,7 @@ import Stats from 'stats.js';
 import CannonDebugger from 'cannon-es-debugger';
 import { VEHICLE_CONFIG } from '../config/vehicle.config';
 import { CAMERA_CONFIG } from '../config/camera.config';
+import { AVATAR_CONFIG } from '../config/avatar.config';
 
 /**
  * Developer-only overlay:
@@ -34,11 +35,18 @@ export class DebugManager {
     vehicleFolder.add(VEHICLE_CONFIG, 'brakeForce', 0, 200);
     vehicleFolder.add(VEHICLE_CONFIG, 'frictionSlip', 0, 5);
 
-    // Camera folder
+    // Camera folder (car)
     const cameraFolder = this.gui.addFolder('Camera');
     cameraFolder.add(CAMERA_CONFIG, 'followDistance', 5, 30);
     cameraFolder.add(CAMERA_CONFIG, 'heightOffset', 2, 15);
     cameraFolder.add(CAMERA_CONFIG, 'lookAtHeight', 0, 5);
+
+    // Avatar folder
+    const avatarFolder = this.gui.addFolder('Avatar');
+    avatarFolder.add(AVATAR_CONFIG, 'walkSpeed', 0.5, 10);
+    avatarFolder.add(AVATAR_CONFIG.camera, 'distance', 0.5, 10);
+    avatarFolder.add(AVATAR_CONFIG.camera, 'heightOffset', 0.2, 5);
+    avatarFolder.add(AVATAR_CONFIG.camera, 'lookAtHeight', 0, 3);
 
     // ---- cannon-es-debugger wireframe overlay ----
     this.cannonDebugger = CannonDebugger(scene, world, { color: 0x00ff00 }) as {

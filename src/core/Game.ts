@@ -50,10 +50,16 @@ export class Game {
     ]);
 
     // Create avatars at city floor level
+    // First spawn = player character, rest = NPCs
     const floorLevel = this.cityMap.getFloorLevel();
-    for (const spawnDef of AVATAR_CONFIG.spawns) {
+    const selectedCharacter = options?.character ?? 'bowlie';
+    const spawns = AVATAR_CONFIG.buildSpawns(selectedCharacter);
+
+    for (const spawnDef of spawns) {
       const avatar = new Avatar(this.sceneManager.scene, {
         modelPath: spawnDef.modelPath,
+        modelType: spawnDef.modelType,
+        texturePath: spawnDef.texturePath,
         position: { x: spawnDef.position.x, y: floorLevel, z: spawnDef.position.z },
         scale: spawnDef.scale,
         rotationY: spawnDef.rotationY,
@@ -136,12 +142,14 @@ export class Game {
     // Update car visuals
     this.car.syncMeshes(alpha);
 
-    // Update avatars (pass input to the controlled one)
-    for (const avatar of this.avatars) {
-      avatar.update(dt, this.controllingAvatar ? this.inputManager : undefined);
-    }
+    // Update camera (pass input for orbit in third-person)
+    this.cameraController.update(dt, this.controllingAvatar ? this.inputManager : undefined);
 
-    this.cameraController.update(dt);
+    // Update avatars (pass input + camera yaw to the controlled one)
+    const cameraYaw = this.cameraController.getOrbitYaw();
+    for (const avatar of this.avatars) {
+      avatar.update(dt, this.controllingAvatar ? this.inputManager : undefined, cameraYaw);
+    }
     this.debugManager.update();
     this.sceneManager.render();
 

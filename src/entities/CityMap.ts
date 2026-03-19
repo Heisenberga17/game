@@ -35,6 +35,40 @@ export class CityMap {
       this.cityModel.traverse((c) => { if (c instanceof THREE.Mesh) meshCount++; });
       console.log('City model loaded, meshes:', meshCount);
 
+      // Remove sky/background meshes baked into the model
+      // Strategy: remove meshes by name, or any single-material mesh bigger than 80% of model bounds
+      const modelBox = new THREE.Box3().setFromObject(this.cityModel);
+      const modelSize = new THREE.Vector3();
+      modelBox.getSize(modelSize);
+      const toRemove: THREE.Object3D[] = [];
+      this.cityModel.traverse((c) => {
+        if (c instanceof THREE.Mesh) {
+          const name = c.name.toLowerCase();
+          if (name.includes('sky') || name.includes('background') || name.includes('dome') || name.includes('cloud')) {
+            toRemove.push(c);
+            return;
+          }
+          // Detect giant enclosing mesh (skybox/skydome with any geometry type)
+          const meshBox = new THREE.Box3().setFromObject(c);
+          const meshSize = new THREE.Vector3();
+          meshBox.getSize(meshSize);
+          // If mesh spans most of the model in X and Z and is very tall, it's a sky
+          if (meshSize.x > modelSize.x * 0.8 && meshSize.z > modelSize.z * 0.8 && meshSize.y > modelSize.y * 0.5) {
+            // Check vertex count — sky meshes tend to have few verts compared to city
+            const geo = c.geometry;
+            const vertCount = geo.attributes.position?.count ?? 0;
+            if (vertCount < 1000) {
+              console.log('Removing likely sky mesh:', c.name, 'verts:', vertCount, 'size:', meshSize);
+              toRemove.push(c);
+            }
+          }
+        }
+      });
+      for (const obj of toRemove) {
+        obj.removeFromParent();
+        console.log('Removed sky mesh from city model:', obj.name);
+      }
+
       // Fix materials for visibility (converts PBR to Lambert as fallback)
       fixMaterials(this.cityModel);
       console.log('Materials fixed');
