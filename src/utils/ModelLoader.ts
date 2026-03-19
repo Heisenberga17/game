@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader, GLTF } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
 /**
@@ -7,7 +8,11 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
  * Provides async loading with caching and error handling.
  */
 
+const dracoLoader = new DRACOLoader();
+dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
+
 const loader = new GLTFLoader();
+loader.setDRACOLoader(dracoLoader);
 const cache = new Map<string, GLTF>();
 
 /**
