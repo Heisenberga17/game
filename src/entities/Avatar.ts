@@ -11,7 +11,6 @@ export interface AvatarConfig {
   position: { x: number; y: number; z: number };
   scale?: number;
   rotationY?: number;
-  walkAnimationPath?: string;
 }
 
 /** NPC state for random wandering */
@@ -30,8 +29,6 @@ export class Avatar implements ICameraTarget {
   private mixer: THREE.AnimationMixer | null = null;
   private idleAction: THREE.AnimationAction | null = null;
   private walkAction: THREE.AnimationAction | null = null;
-  private boneNames = new Set<string>();
-
   private playerControlled = false;
   private readonly _position = new THREE.Vector3();
   private readonly _quaternion = new THREE.Quaternion();
@@ -71,7 +68,7 @@ export class Avatar implements ICameraTarget {
       let animations: THREE.AnimationClip[] = [];
 
       if (this.config.modelType === 'fbx') {
-        // FBX path
+        // FBX path — walk.fbx contains skeleton + mesh + walk animation
         const fbxGroup = await loadFBX(this.config.modelPath);
 
         // Apply PNG texture if provided, otherwise fall back to fixFBXMaterials
@@ -121,88 +118,36 @@ export class Avatar implements ICameraTarget {
 
       this.scene.add(this.mesh);
 
-      // Collect bone names from this model for animation remapping
-      this.collectBoneNames();
-
       // Animation mixer
       this.mixer = new THREE.AnimationMixer(this.mesh);
 
-      // Play idle animation from the model
-      if (animations.length > 0) {
+      // Use the embedded animation as the walk clip
+      if (animations.length > 0 && this.mixer) {
         const clip = animations[0];
-        this.idleAction = this.mixer.clipAction(clip);
-        this.idleAction.play();
-      }
+        // Filter out root-motion position track to prevent sliding/floating
+        clip.tracks = clip.tracks.filter(t => t.name !== 'mixamorigHips.position');
 
-      // Try to load walk animation
-      await this.loadWalkAnimation();
-
-      console.log('Avatar loaded successfully');
-    } catch (error) {
-      console.error('Failed to load avatar:', error);
-    }
-  }
-
-  /** Collect all bone names from the avatar's skeleton for animation remapping. */
-  private collectBoneNames(): void {
-    if (!this.mesh) return;
-    this.mesh.traverse((child) => {
-      if (child instanceof THREE.Bone) {
-        this.boneNames.add(child.name);
-      }
-    });
-    console.log('Avatar bones:', [...this.boneNames]);
-  }
-
-  /**
-   * Remap Mixamo FBX animation tracks to match avatar bone names.
-   * Mixamo uses "mixamorig:Hips" but Avaturn uses "Hips".
-   */
-  private remapAnimationClip(clip: THREE.AnimationClip): THREE.AnimationClip {
-    for (const track of clip.tracks) {
-      // Track names look like "mixamorig:Hips.position" or "mixamorigLeftArm.quaternion"
-      const dotIdx = track.name.indexOf('.');
-      if (dotIdx === -1) continue;
-
-      const bonePart = track.name.substring(0, dotIdx);
-      const propPart = track.name.substring(dotIdx);
-
-      // If the bone name already matches, no remapping needed
-      if (this.boneNames.has(bonePart)) continue;
-
-      // Strip "mixamorig:" or "mixamorig" prefix (FBXLoader may drop the colon)
-      const stripped = bonePart.replace(/^mixamorig:?/, '');
-      if (this.boneNames.has(stripped)) {
-        track.name = stripped + propPart;
-      }
-    }
-    return clip;
-  }
-
-  private async loadWalkAnimation(): Promise<void> {
-    const walkPath = this.config.walkAnimationPath
-      ?? '/models/avatars/animations/walking.fbx';
-
-    try {
-      const fbx = await loadFBX(walkPath);
-      console.log('FBX loaded, animations:', fbx.animations.length);
-      if (fbx.animations.length > 0) {
-        const rawClip = fbx.animations[0];
-        console.log('Raw FBX tracks (first 5):', rawClip.tracks.slice(0, 5).map(t => t.name));
-        console.log('Avatar bone names:', [...this.boneNames]);
-      }
-      if (fbx.animations.length > 0 && this.mixer) {
-        // Remap bone names from Mixamo format to avatar format
-        const clip = this.remapAnimationClip(fbx.animations[0]);
-        console.log('Remapped tracks (first 5):', clip.tracks.slice(0, 5).map(t => t.name));
+        // Walk action — starts playing but blended to 0 weight (idle)
         this.walkAction = this.mixer.clipAction(clip);
         this.walkAction.enabled = true;
         this.walkAction.setEffectiveWeight(0);
         this.walkAction.play();
-        console.log('Walk animation loaded and remapped:', clip.name, 'tracks:', clip.tracks.length);
+
+        // Idle action reuses the same clip but at timeScale 0 (frozen first frame)
+        this.idleAction = this.mixer.clipAction(
+          new THREE.AnimationClip(clip.name + '_idle', clip.duration, clip.tracks),
+        );
+        this.idleAction.enabled = true;
+        this.idleAction.setEffectiveWeight(1);
+        this.idleAction.setEffectiveTimeScale(0);
+        this.idleAction.play();
+
+        console.log('Walk animation ready (embedded):', clip.name, 'tracks:', clip.tracks.length);
       }
-    } catch (err) {
-      console.warn('Walk animation failed:', walkPath, err);
+
+      console.log('Avatar loaded successfully');
+    } catch (error) {
+      console.error('Failed to load avatar:', error);
     }
   }
 

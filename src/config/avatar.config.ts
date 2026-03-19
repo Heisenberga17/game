@@ -26,7 +26,7 @@ export const CHARACTER_DEFS: CharacterDef[] = [
   {
     id: 'bowlie',
     name: 'Bo.Wlie',
-    modelPath: '/models/avatars/bowlie/model.fbx',
+    modelPath: '/models/avatars/bowlie/walk.fbx',
     modelType: 'fbx',
     texturePath: '/models/avatars/bowlie/texture.png',
     scale: 0.0001,
@@ -34,7 +34,7 @@ export const CHARACTER_DEFS: CharacterDef[] = [
   {
     id: 'pyro',
     name: 'Pyro',
-    modelPath: '/models/avatars/pyro/model.fbx',
+    modelPath: '/models/avatars/pyro/walk.fbx',
     modelType: 'fbx',
     texturePath: '/models/avatars/pyro/texture.png',
     scale: 0.0001,
@@ -42,7 +42,7 @@ export const CHARACTER_DEFS: CharacterDef[] = [
   {
     id: 'zacko-psx',
     name: 'Zacko',
-    modelPath: '/models/avatars/zacko-psx/model.fbx',
+    modelPath: '/models/avatars/zacko-psx/walk.fbx',
     modelType: 'fbx',
     texturePath: '/models/avatars/zacko-psx/texture.png',
     scale: 0.0001,
